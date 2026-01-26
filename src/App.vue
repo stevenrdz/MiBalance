@@ -2,11 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import Chart from 'chart.js/auto'
 import { auth, db, provider, firebaseReady } from './firebase'
-import {
-  signInWithPopup,
-  signOut,
-  onAuthStateChanged,
-} from 'firebase/auth'
+import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth'
 import {
   addDoc,
   collection,
@@ -21,27 +17,30 @@ import {
 
 const user = ref(null)
 const authReady = ref(false)
+const sidebarOpen = ref(false)
+const currentView = ref('dashboard')
+
 const transactions = ref([])
 const budgets = ref([])
 const categories = ref([])
 const reminders = ref([])
+
 const chartCanvas = ref(null)
 let chartInstance = null
 let unsubscribers = []
 
 const defaultCategories = [
-  'Alimentación',
+  'Alimentacion',
   'Transporte',
   'Servicios',
   'Salud',
   'Vivienda',
-  'Educación',
+  'Educacion',
   'Entretenimiento',
   'Ahorro',
 ]
 
-const transactionForm = ref({
-  type: 'expense',
+const expenseForm = ref({
   amount: '',
   category: '',
   note: '',
@@ -53,7 +52,6 @@ const budgetForm = ref({
   limit: '',
 })
 
-const categoryForm = ref({ name: '' })
 const reminderForm = ref({
   title: '',
   dueDate: '',
@@ -61,19 +59,30 @@ const reminderForm = ref({
   note: '',
 })
 
+const navGroups = [
+  {
+    title: 'General',
+    items: [{ id: 'dashboard', label: 'Dashboard' }],
+  },
+  {
+    title: 'Gastos',
+    items: [
+      { id: 'expenses', label: 'Gastos' },
+      { id: 'add-expense', label: 'Agregar' },
+    ],
+  },
+]
+
 const categoryOptions = computed(() =>
   categories.value.length ? categories.value : defaultCategories
 )
 
-const inflowTypes = ['income', 'loan']
-const outflowTypes = ['expense', 'debt']
-
 const totals = computed(() => {
   const income = transactions.value
-    .filter((item) => inflowTypes.includes(item.type))
+    .filter((item) => ['income', 'loan'].includes(item.type))
     .reduce((sum, item) => sum + item.amount, 0)
   const expenses = transactions.value
-    .filter((item) => outflowTypes.includes(item.type))
+    .filter((item) => ['expense', 'debt'].includes(item.type))
     .reduce((sum, item) => sum + item.amount, 0)
   return {
     income,
@@ -82,17 +91,19 @@ const totals = computed(() => {
   }
 })
 
+const expensesOnly = computed(() =>
+  transactions.value.filter((item) => item.type === 'expense')
+)
+
 const pendingReminders = computed(() =>
   reminders.value.filter((item) => !item.done)
 )
 
 const spentByCategory = computed(() => {
   const map = {}
-  transactions.value
-    .filter((item) => item.type === 'expense')
-    .forEach((item) => {
-      map[item.category] = (map[item.category] || 0) + item.amount
-    })
+  expensesOnly.value.forEach((item) => {
+    map[item.category] = (map[item.category] || 0) + item.amount
+  })
   return map
 })
 
@@ -104,9 +115,9 @@ const chartData = computed(() => {
     if (!map[month]) {
       map[month] = { inflow: 0, outflow: 0 }
     }
-    if (inflowTypes.includes(item.type)) {
+    if (['income', 'loan'].includes(item.type)) {
       map[month].inflow += item.amount
-    } else if (outflowTypes.includes(item.type)) {
+    } else if (['expense', 'debt'].includes(item.type)) {
       map[month].outflow += item.amount
     }
   })
@@ -125,9 +136,8 @@ const formatCurrency = (value) =>
     maximumFractionDigits: 2,
   }).format(value || 0)
 
-const resetTransactionForm = () => {
-  transactionForm.value = {
-    type: 'expense',
+const resetExpenseForm = () => {
+  expenseForm.value = {
     amount: '',
     category: categoryOptions.value[0] || '',
     note: '',
@@ -151,10 +161,6 @@ const resetReminderForm = () => {
   }
 }
 
-const resetCategoryForm = () => {
-  categoryForm.value = { name: '' }
-}
-
 const login = async () => {
   if (!firebaseReady) return
   await signInWithPopup(auth, provider)
@@ -162,6 +168,7 @@ const login = async () => {
 
 const logout = async () => {
   await signOut(auth)
+  currentView.value = 'dashboard'
 }
 
 const connectCollections = (uid) => {
@@ -208,20 +215,20 @@ const clearCollections = () => {
   }
 }
 
-const addTransaction = async () => {
+const addExpense = async () => {
   if (!user.value) return
-  const amount = Number(transactionForm.value.amount)
-  if (!amount || !transactionForm.value.category) return
+  const amount = Number(expenseForm.value.amount)
+  if (!amount || !expenseForm.value.category) return
   const txRef = collection(db, 'users', user.value.uid, 'transactions')
   await addDoc(txRef, {
-    type: transactionForm.value.type,
+    type: 'expense',
     amount,
-    category: transactionForm.value.category,
-    note: transactionForm.value.note.trim(),
-    date: transactionForm.value.date,
+    category: expenseForm.value.category,
+    note: expenseForm.value.note.trim(),
+    date: expenseForm.value.date,
     createdAt: serverTimestamp(),
   })
-  resetTransactionForm()
+  resetExpenseForm()
 }
 
 const removeTransaction = async (id) => {
@@ -244,17 +251,6 @@ const addBudget = async () => {
 const removeBudget = async (id) => {
   if (!user.value) return
   await deleteDoc(doc(db, 'users', user.value.uid, 'budgets', id))
-}
-
-const addCategory = async () => {
-  if (!user.value) return
-  const name = categoryForm.value.name.trim()
-  if (!name) return
-  await addDoc(collection(db, 'users', user.value.uid, 'categories'), {
-    name,
-    createdAt: serverTimestamp(),
-  })
-  resetCategoryForm()
 }
 
 const addReminder = async () => {
@@ -309,14 +305,16 @@ const updateChart = () => {
       labels,
       datasets: [
         {
-          label: 'Ingresos / Préstamos',
+          label: 'Ingresos y prestamos',
           data: inflow,
-          backgroundColor: '#7bd389',
+          backgroundColor: '#10b981',
+          borderRadius: 6,
         },
         {
-          label: 'Gastos / Deudas',
+          label: 'Gastos y deudas',
           data: outflow,
-          backgroundColor: '#ff8c7a',
+          backgroundColor: '#f97316',
+          borderRadius: 6,
         },
       ],
     },
@@ -338,13 +336,18 @@ const updateChart = () => {
   })
 }
 
+const setView = (viewId) => {
+  currentView.value = viewId
+  sidebarOpen.value = false
+}
+
 onMounted(() => {
+  resetExpenseForm()
+  resetBudgetForm()
   if (!firebaseReady) {
     authReady.value = true
     return
   }
-  resetTransactionForm()
-  resetBudgetForm()
   onAuthStateChanged(auth, (currentUser) => {
     user.value = currentUser
     authReady.value = true
@@ -363,140 +366,223 @@ watch(
   },
   { deep: true }
 )
+
+watch(
+  () => currentView.value,
+  (viewId) => {
+    if (viewId === 'dashboard') {
+      updateChart()
+    }
+  }
+)
 </script>
 
 <template>
   <main class="app">
-    <header class="topbar">
-      <div class="brand">
-        <div class="logo">FP</div>
-        <div>
-          <h1>MiBalance</h1>
-          <p class="subtitle">Control claro para tus ingresos, gastos y metas.</p>
+    <section v-if="!authReady" class="loading">Cargando...</section>
+
+    <section v-else-if="!user" class="login">
+      <div class="login-card">
+        <div class="login-brand">
+          <span class="logo">MB</span>
+          <h1 data-testid="login-title">MiBalance</h1>
+          <p>
+            Control claro para tus ingresos y gastos, todo en un solo lugar.
+          </p>
         </div>
-      </div>
-      <div class="actions">
-        <button v-if="firebaseReady && !user" class="ghost" @click="login">
-          Entrar con Google
+        <button
+          class="primary"
+          :disabled="!firebaseReady"
+          @click="login"
+        >
+          Inicia sesion con Google
         </button>
-        <div v-else-if="user" class="user">
-          <span>{{ user.displayName }}</span>
-          <button @click="logout">Salir</button>
-        </div>
-      </div>
-    </header>
-
-    <section v-if="!firebaseReady" class="notice">
-      <h2>Configura Firebase</h2>
-      <p>
-        Crea un proyecto en Firebase, habilita Google Sign-In y completa las
-        variables en <code>.env</code>. Luego reinicia el servidor.
-      </p>
-    </section>
-
-    <section v-else-if="authReady && !user" class="welcome">
-      <div>
-        <h2>Tu tablero financiero en GitHub Pages</h2>
-        <p>
-          Registra ingresos, gastos, préstamos y deudas. Define presupuestos y
-          crea recordatorios para no perder el control.
+        <p v-if="!firebaseReady" class="warning" data-testid="firebase-warning">
+          Falta configurar Firebase en el archivo .env.
         </p>
-        <ul>
-          <li>Gráficos mensuales con tus movimientos.</li>
-          <li>Presupuestos por categoría.</li>
-          <li>Recordatorios con montos y fechas.</li>
-        </ul>
-      </div>
-      <div class="panel">
-        <h3>Antes de iniciar</h3>
-        <ol>
-          <li>Configura Firebase Auth + Firestore.</li>
-          <li>Agrega tus variables en <code>.env</code>.</li>
-          <li>Conéctate con Google.</li>
-        </ol>
       </div>
     </section>
 
-    <section v-else class="dashboard">
-      <div class="grid">
-        <section class="card summary">
-          <h2>Resumen</h2>
-          <div class="metrics">
+    <section v-else class="layout" data-testid="dashboard">
+      <aside :class="['sidebar', { open: sidebarOpen }]">
+        <div class="sidebar-header">
+          <span class="logo">MB</span>
+          <div>
+            <strong>MiBalance</strong>
+            <small>Personal Finance</small>
+          </div>
+        </div>
+
+        <nav class="nav">
+          <div v-for="group in navGroups" :key="group.title" class="nav-group">
+            <span class="nav-title">{{ group.title }}</span>
+            <button
+              v-for="item in group.items"
+              :key="item.id"
+              :class="['nav-item', { active: currentView === item.id }]"
+              @click="setView(item.id)"
+            >
+              {{ item.label }}
+            </button>
+          </div>
+        </nav>
+      </aside>
+
+      <div v-if="sidebarOpen" class="backdrop" @click="sidebarOpen = false"></div>
+
+      <div class="content">
+        <header class="topbar">
+          <div class="topbar-left">
+            <button class="menu-button" @click="sidebarOpen = true">Menu</button>
             <div>
-              <span>Balance actual</span>
-              <strong>{{ formatCurrency(totals.balance) }}</strong>
+              <h1>{{ currentView === 'dashboard' ? 'Dashboard' : 'Gastos' }}</h1>
+              <p class="subtitle">
+                {{ user.displayName }} · {{ pendingReminders.length }}
+                recordatorios pendientes
+              </p>
             </div>
-            <div>
-              <span>Ingresos + préstamos</span>
-              <strong>{{ formatCurrency(totals.income) }}</strong>
-            </div>
-            <div>
-              <span>Gastos + deudas</span>
-              <strong>{{ formatCurrency(totals.expenses) }}</strong>
-            </div>
-            <div>
-              <span>Recordatorios pendientes</span>
-              <strong>{{ pendingReminders.length }}</strong>
-            </div>
+          </div>
+          <div class="topbar-right">
+            <button class="ghost" @click="logout">Salir</button>
+          </div>
+        </header>
+
+        <section v-if="currentView === 'dashboard'" class="dashboard">
+          <div class="grid">
+            <section class="card summary">
+              <h2>Resumen</h2>
+              <div class="metrics">
+                <div>
+                  <span>Balance actual</span>
+                  <strong>{{ formatCurrency(totals.balance) }}</strong>
+                </div>
+                <div>
+                  <span>Ingresos y prestamos</span>
+                  <strong>{{ formatCurrency(totals.income) }}</strong>
+                </div>
+                <div>
+                  <span>Gastos y deudas</span>
+                  <strong>{{ formatCurrency(totals.expenses) }}</strong>
+                </div>
+                <div>
+                  <span>Recordatorios</span>
+                  <strong>{{ pendingReminders.length }}</strong>
+                </div>
+              </div>
+            </section>
+
+            <section class="card chart">
+              <h2>Flujo mensual</h2>
+              <canvas ref="chartCanvas" height="140"></canvas>
+            </section>
+          </div>
+
+          <div class="grid two">
+            <section class="card">
+              <h2>Presupuestos</h2>
+              <form class="form" @submit.prevent="addBudget">
+                <label>
+                  Categoria
+                  <select v-model="budgetForm.category">
+                    <option v-for="cat in categoryOptions" :key="cat" :value="cat">
+                      {{ cat }}
+                    </option>
+                  </select>
+                </label>
+                <label>
+                  Limite
+                  <input v-model="budgetForm.limit" type="number" step="0.01" />
+                </label>
+                <button class="primary" type="submit">Guardar</button>
+              </form>
+
+              <div class="budget-list">
+                <div v-for="budget in budgets" :key="budget.id" class="budget-item">
+                  <div class="budget-head">
+                    <span>{{ budget.category }}</span>
+                    <span>{{ formatCurrency(budget.limit) }}</span>
+                  </div>
+                  <div class="progress">
+                    <div
+                      class="bar"
+                      :style="{ width: budgetUsage(budget).percent + '%' }"
+                    ></div>
+                  </div>
+                  <small>
+                    {{ formatCurrency(budgetUsage(budget).spent) }} gastado
+                  </small>
+                  <button class="link" @click="removeBudget(budget.id)">
+                    Eliminar
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            <section class="card">
+              <h2>Recordatorios</h2>
+              <form class="form" @submit.prevent="addReminder">
+                <label>
+                  Titulo
+                  <input v-model="reminderForm.title" type="text" />
+                </label>
+                <label>
+                  Fecha
+                  <input v-model="reminderForm.dueDate" type="date" />
+                </label>
+                <label>
+                  Monto (opcional)
+                  <input v-model="reminderForm.amount" type="number" step="0.01" />
+                </label>
+                <label class="full">
+                  Nota
+                  <input v-model="reminderForm.note" type="text" />
+                </label>
+                <button class="primary" type="submit">Crear</button>
+              </form>
+
+              <div class="list">
+                <div
+                  v-for="item in reminders"
+                  :key="item.id"
+                  class="list-item"
+                  :class="{ done: item.done }"
+                >
+                  <div>
+                    <strong>{{ item.title }}</strong>
+                    <span>{{ item.note || 'Sin nota' }}</span>
+                  </div>
+                  <div class="list-meta">
+                    <span>{{ item.dueDate }}</span>
+                    <span v-if="item.amount" class="amount in">
+                      {{ formatCurrency(item.amount) }}
+                    </span>
+                    <button class="link" @click="toggleReminder(item)">
+                      {{ item.done ? 'Reabrir' : 'Hecho' }}
+                    </button>
+                    <button class="link" @click="removeReminder(item.id)">
+                      Quitar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </section>
           </div>
         </section>
 
-        <section class="card chart">
-          <h2>Flujo mensual</h2>
-          <canvas ref="chartCanvas" height="140"></canvas>
-        </section>
-      </div>
-
-      <div class="grid two">
-        <section class="card">
-          <h2>Nuevo movimiento</h2>
-          <form class="form" @submit.prevent="addTransaction">
-            <label>
-              Tipo
-              <select v-model="transactionForm.type">
-                <option value="income">Ingreso</option>
-                <option value="expense">Gasto</option>
-                <option value="loan">Préstamo</option>
-                <option value="debt">Deuda</option>
-              </select>
-            </label>
-            <label>
-              Monto
-              <input v-model="transactionForm.amount" type="number" step="0.01" />
-            </label>
-            <label>
-              Categoría
-              <select v-model="transactionForm.category">
-                <option v-for="cat in categoryOptions" :key="cat" :value="cat">
-                  {{ cat }}
-                </option>
-              </select>
-            </label>
-            <label>
-              Fecha
-              <input v-model="transactionForm.date" type="date" />
-            </label>
-            <label class="full">
-              Nota
-              <input v-model="transactionForm.note" type="text" />
-            </label>
-            <button class="primary" type="submit">Registrar</button>
-          </form>
-
+        <section v-else-if="currentView === 'expenses'" class="card">
+          <div class="section-head">
+            <h2>Gastos</h2>
+            <button class="ghost" @click="setView('add-expense')">Agregar</button>
+          </div>
           <div class="list">
-            <div v-for="item in transactions" :key="item.id" class="list-item">
+            <div v-for="item in expensesOnly" :key="item.id" class="list-item">
               <div>
                 <strong>{{ item.category }}</strong>
-                <span>{{ item.note || item.type }}</span>
+                <span>{{ item.note || 'Sin nota' }}</span>
               </div>
               <div class="list-meta">
                 <span>{{ item.date }}</span>
-                <span
-                  :class="[
-                    'amount',
-                    inflowTypes.includes(item.type) ? 'in' : 'out',
-                  ]"
-                >
+                <span class="amount out">
                   {{ formatCurrency(item.amount) }}
                 </span>
                 <button class="link" @click="removeTransaction(item.id)">
@@ -507,111 +593,34 @@ watch(
           </div>
         </section>
 
-        <section class="card">
-          <h2>Presupuestos</h2>
-          <form class="form" @submit.prevent="addBudget">
+        <section v-else class="card">
+          <div class="section-head">
+            <h2>Agregar gasto</h2>
+            <button class="ghost" @click="setView('expenses')">Ver gastos</button>
+          </div>
+          <form class="form" @submit.prevent="addExpense">
             <label>
-              Categoría
-              <select v-model="budgetForm.category">
+              Monto
+              <input v-model="expenseForm.amount" type="number" step="0.01" />
+            </label>
+            <label>
+              Categoria
+              <select v-model="expenseForm.category">
                 <option v-for="cat in categoryOptions" :key="cat" :value="cat">
                   {{ cat }}
                 </option>
               </select>
             </label>
             <label>
-              Límite
-              <input v-model="budgetForm.limit" type="number" step="0.01" />
-            </label>
-            <button class="primary" type="submit">Guardar</button>
-          </form>
-
-          <div class="budget-list">
-            <div v-for="budget in budgets" :key="budget.id" class="budget-item">
-              <div class="budget-head">
-                <span>{{ budget.category }}</span>
-                <span>{{ formatCurrency(budget.limit) }}</span>
-              </div>
-              <div class="progress">
-                <div
-                  class="bar"
-                  :style="{ width: budgetUsage(budget).percent + '%' }"
-                ></div>
-              </div>
-              <small>
-                {{ formatCurrency(budgetUsage(budget).spent) }} gastado
-              </small>
-              <button class="link" @click="removeBudget(budget.id)">
-                Eliminar
-              </button>
-            </div>
-          </div>
-        </section>
-      </div>
-
-      <div class="grid two">
-        <section class="card">
-          <h2>Categorías</h2>
-          <form class="form" @submit.prevent="addCategory">
-            <label class="full">
-              Nueva categoría
-              <input v-model="categoryForm.name" type="text" />
-            </label>
-            <button class="primary" type="submit">Agregar</button>
-          </form>
-          <div class="pill-list">
-            <span v-for="cat in categoryOptions" :key="cat" class="pill">
-              {{ cat }}
-            </span>
-          </div>
-        </section>
-
-        <section class="card">
-          <h2>Recordatorios</h2>
-          <form class="form" @submit.prevent="addReminder">
-            <label>
-              Título
-              <input v-model="reminderForm.title" type="text" />
-            </label>
-            <label>
               Fecha
-              <input v-model="reminderForm.dueDate" type="date" />
-            </label>
-            <label>
-              Monto (opcional)
-              <input v-model="reminderForm.amount" type="number" step="0.01" />
+              <input v-model="expenseForm.date" type="date" />
             </label>
             <label class="full">
               Nota
-              <input v-model="reminderForm.note" type="text" />
+              <input v-model="expenseForm.note" type="text" />
             </label>
-            <button class="primary" type="submit">Crear</button>
+            <button class="primary" type="submit">Registrar gasto</button>
           </form>
-
-          <div class="list">
-            <div
-              v-for="item in reminders"
-              :key="item.id"
-              class="list-item"
-              :class="{ done: item.done }"
-            >
-              <div>
-                <strong>{{ item.title }}</strong>
-                <span>{{ item.note || 'Sin nota' }}</span>
-              </div>
-              <div class="list-meta">
-                <span>{{ item.dueDate }}</span>
-                <span v-if="item.amount" class="amount in">
-                  {{ formatCurrency(item.amount) }}
-                </span>
-                <button class="link" @click="toggleReminder(item)">
-                  {{ item.done ? 'Reabrir' : 'Hecho' }}
-                </button>
-                <button class="link" @click="removeReminder(item.id)">
-                  Quitar
-                </button>
-              </div>
-            </div>
-          </div>
         </section>
       </div>
     </section>
