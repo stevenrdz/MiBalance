@@ -33,7 +33,7 @@ export function Modal({ isOpen, title, onClose, children, className }: ModalProp
             onClick={onClose}
             type="button"
           >
-            ✕
+            X
           </button>
         </div>
         {children}
@@ -41,4 +41,3 @@ export function Modal({ isOpen, title, onClose, children, className }: ModalProp
     </div>
   );
 }
-
