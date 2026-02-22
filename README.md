@@ -17,6 +17,9 @@ App web de finanzas personales enfocada en Ecuador.
 - Transacciones:
   - CRUD de ingresos/egresos.
   - Adjuntos `jpg/png/pdf` (máx `5MB` por archivo) con Supabase Storage.
+  - OCR server-side para imágenes (`jpg/png`) con autocompletado de fecha, monto, comercio, método de pago y categoría sugerida.
+  - Si `OPENAI_API_KEY` está configurada usa IA (OpenAI); si no, hace fallback automático a Tesseract.
+  - Acciones de listado con iconos para editar/eliminar.
   - Búsqueda, filtros y paginación.
 - Categorías:
   - CRUD por tipo (`INCOME/EXPENSE`) y activación/desactivación.
@@ -67,23 +70,26 @@ cp .env.example .env.local
 
 Variables:
 
-- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_URL` (URL pública para navegador; local recomendado `http://127.0.0.1:54321`)
+- `SUPABASE_INTERNAL_URL` (URL interna para SSR en Docker; local `http://host.docker.internal:54321`)
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY` (opcional en este MVP, reservado para tareas administrativas futuras)
 - `NEXT_PUBLIC_APP_URL` (por defecto: `http://localhost:3000`)
+- `OPENAI_API_KEY` (opcional, habilita extracción IA de comprobantes)
+- `OPENAI_OCR_MODEL` (opcional, por defecto: `gpt-4.1-mini`)
 
 ## 5. Levantar local con Docker (E2E)
 
 ### Paso A. Levantar Supabase local
 
 ```bash
-docker compose run --rm supabase-cli supabase start
+docker compose run --rm supabase-cli sh -lc "npx supabase@latest start"
 ```
 
 Obtén claves/URL locales:
 
 ```bash
-docker compose run --rm supabase-cli supabase status -o env
+docker compose run --rm supabase-cli sh -lc "npx supabase@latest status -o env"
 ```
 
 Copia esos valores a `.env.local`.
@@ -107,7 +113,7 @@ Accede en `http://localhost:3000`.
 ### Paso D. Detener Supabase local
 
 ```bash
-docker compose run --rm supabase-cli supabase stop
+docker compose run --rm supabase-cli sh -lc "npx supabase@latest stop"
 ```
 
 ## 6. Scripts npm
@@ -196,10 +202,17 @@ En Supabase Auth URL Configuration agrega:
   - usa `cmd /c npm <comando>` o habilita scripts en PowerShell.
 - `supabase start` no levanta:
   - verifica Docker Desktop activo y permisos del socket.
+- `ERR_CONNECTION_TIMED_OUT` a `host.docker.internal` desde navegador:
+  - pon `NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321` en `.env.local`.
+  - usa `SUPABASE_INTERNAL_URL=http://host.docker.internal:54321` para el servidor en Docker.
 - `No autorizado` en API:
   - revisa sesión activa y cookies.
 - Adjuntos fallan:
   - verifica tamaño/MIME y policies del bucket `attachments`.
+- OCR no llena campos:
+  - usa imagen nítida y con buena iluminación.
+  - con IA, verifica `OPENAI_API_KEY` y salida a internet desde el contenedor `app`.
+  - sin IA, la primera ejecución puede tardar más porque Tesseract descarga recursos de idioma.
 - Link de reset no funciona:
   - revisa Redirect URLs exactas en Supabase Auth.
 
@@ -209,6 +222,17 @@ Validado en este repo:
 
 - `npm run typecheck` OK
 - `npm run lint` OK
+- `npm run build` OK (validado dentro del contenedor `app`)
 
-No se incluyó suite e2e automatizada (Playwright queda como extensión futura).
+Se incluyo suite E2E minima con Playwright en `e2e/smoke.spec.ts`.
 
+- Caso no autenticado (redirige a `/auth/login`): OK
+- Caso login y redireccion a dashboard: pendiente de estabilizar en entorno containerizado
+
+## 12. Pendientes / Future Work
+
+- Presupuestos mensuales por categoría.
+- Alertas de corte/pago.
+- Importación CSV bancos.
+- OCR avanzado de comprobantes (mejor precisión, extracción de ítems y normalización de montos).
+- PWA offline.
