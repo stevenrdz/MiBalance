@@ -23,6 +23,29 @@ type DraftInstallment = {
 
 type DebtType = DebtInput["type"];
 
+type AnalysisFieldSource = {
+  file_name: string;
+  document_category?: string;
+} | null;
+
+type AnalysisDocument = {
+  file_name: string;
+  isRelevant: boolean;
+  reason?: string;
+  document_category?: string;
+  creditor?: string;
+  principal?: number;
+  term_months?: number;
+  installment_amount?: number;
+  interest_rate?: number;
+  start_date?: string;
+  installments: Array<{
+    installment_number: number;
+    due_date: string;
+    scheduled_amount: number;
+  }>;
+};
+
 const TYPE_COPY: Record<
   DebtType,
   {
@@ -34,35 +57,50 @@ const TYPE_COPY: Record<
 > = {
   LOAN: {
     title: "Prestamo",
-    documentLabel: "Documento del prestamo",
+    documentLabel: "Documentos del prestamo",
     documentDescription:
-      "Sube el contrato o la tabla de amortizacion. Si el archivo es valido, la app completara los campos y detectara las letras.",
+      "Puedes subir contrato y tabla de amortizacion juntos. La app fusiona ambos y prioriza la tabla para letras y el contrato para datos generales si hace falta.",
     scheduleTitle: "Letras detectadas"
   },
   CASH_ADVANCE: {
     title: "Avance en efectivo",
-    documentLabel: "Documento del avance",
+    documentLabel: "Documentos del avance",
     documentDescription:
-      "Sube el contrato, tabla o estado donde aparezcan las letras del avance para completar el plan de pagos.",
+      "Sube contrato, tabla o estado donde aparezcan las letras del avance para completar el plan de pagos.",
     scheduleTitle: "Letras del avance"
   },
   DEFERRED: {
     title: "Diferido",
-    documentLabel: "Documento del diferido",
+    documentLabel: "Documentos del diferido",
     documentDescription:
-      "Sube el comprobante o estado del diferido para detectar cuotas, fechas y montos automaticamente.",
+      "Sube comprobantes o estados del diferido. Si hay varias fuentes, la app te muestra de cual documento salio cada dato.",
     scheduleTitle: "Cuotas detectadas"
   }
 };
+
+function getCategoryLabel(category?: string) {
+  if (category === "AMORTIZATION_TABLE") return "Tabla de amortizacion";
+  if (category === "CONTRACT") return "Contrato";
+  if (category === "STATEMENT") return "Estado de cuenta";
+  return "Documento";
+}
+
+function renderSource(source: AnalysisFieldSource) {
+  if (!source) return "Manual";
+  return `${source.file_name} · ${getCategoryLabel(source.document_category)}`;
+}
 
 export function DebtOnboardingForm() {
   const router = useRouter();
   const toast = useToast();
   const [serverError, setServerError] = useState<string | null>(null);
-  const [documentFile, setDocumentFile] = useState<File | null>(null);
+  const [documentFiles, setDocumentFiles] = useState<File[]>([]);
   const [documentChecked, setDocumentChecked] = useState(false);
   const [installments, setInstallments] = useState<DraftInstallment[]>([]);
   const [analyzing, setAnalyzing] = useState(false);
+  const [analysisDocuments, setAnalysisDocuments] = useState<AnalysisDocument[]>([]);
+  const [fieldSources, setFieldSources] = useState<Record<string, AnalysisFieldSource>>({});
+  const [installmentsSourceFileName, setInstallmentsSourceFileName] = useState<string | null>(null);
 
   const form = useForm<DebtInput>({
     resolver: zodResolver(debtSchema),
@@ -114,8 +152,8 @@ export function DebtOnboardingForm() {
   };
 
   const analyzeDocument = async () => {
-    if (!documentFile) {
-      toast.error(`Selecciona un PDF o imagen de ${selectedCopy.title.toLowerCase()}.`);
+    if (documentFiles.length === 0) {
+      toast.error(`Selecciona al menos un PDF o imagen de ${selectedCopy.title.toLowerCase()}.`);
       return;
     }
 
@@ -123,7 +161,7 @@ export function DebtOnboardingForm() {
     setServerError(null);
     try {
       const payload = new FormData();
-      payload.set("file", documentFile);
+      documentFiles.forEach((file) => payload.append("files", file));
       payload.set("expectedType", selectedType);
       const response = await fetch("/api/ocr/loan-document", {
         method: "POST",
@@ -136,29 +174,44 @@ export function DebtOnboardingForm() {
       if (!json.isRelevant) {
         setDocumentChecked(false);
         setInstallments([]);
-        toast.error(json.reason ?? `El documento no parece corresponder a ${selectedCopy.title.toLowerCase()}.`);
+        setAnalysisDocuments(json.documents ?? []);
+        toast.error(json.reason ?? `Los documentos no parecen corresponder a ${selectedCopy.title.toLowerCase()}.`);
         return;
       }
 
       setDocumentChecked(true);
+      setAnalysisDocuments(json.documents ?? []);
+      setFieldSources(json.field_sources ?? {});
+      setInstallmentsSourceFileName(json.installments_source_file_name ?? null);
+
       if (json.creditor) form.setValue("creditor", json.creditor, { shouldDirty: true });
       if (json.principal) form.setValue("principal", Number(json.principal), { shouldDirty: true });
       if (json.term_months) form.setValue("term_months", Number(json.term_months), { shouldDirty: true });
       if (json.installment_amount) {
         form.setValue("installment_amount", Number(json.installment_amount), { shouldDirty: true });
       }
+      if (json.interest_rate != null) {
+        form.setValue("interest_rate", Number(json.interest_rate), { shouldDirty: true });
+      }
       if (json.start_date) form.setValue("start_date", json.start_date, { shouldDirty: true });
       if (Array.isArray(json.installments) && json.installments.length) {
         setInstallments(
-          json.installments.map((item: DraftInstallment) => ({
-            ...item,
-            paid_at: new Date().toISOString().slice(0, 10)
-          }))
+          json.installments.map(
+            (item: {
+              installment_number: number;
+              due_date: string;
+              scheduled_amount: number;
+            }) => ({
+              ...item,
+              paid: false,
+              paid_at: new Date().toISOString().slice(0, 10)
+            })
+          )
         );
         form.setValue("term_months", json.installments.length, { shouldDirty: true });
       }
 
-      toast.success("Documento analizado. Revisa los datos detectados antes de guardar.");
+      toast.success("Documentos analizados. Revisa la comparacion y ajusta antes de guardar.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "No se pudo analizar el documento.");
     } finally {
@@ -166,8 +219,8 @@ export function DebtOnboardingForm() {
     }
   };
 
-  const uploadDocument = async (debtId: string) => {
-    if (!documentFile) return null;
+  const uploadDocuments = async (debtId: string) => {
+    if (documentFiles.length === 0) return new Map<string, string>();
 
     const supabase = createClient();
     const {
@@ -175,35 +228,41 @@ export function DebtOnboardingForm() {
     } = await supabase.auth.getUser();
     if (!user) throw new Error("Sesion no encontrada.");
 
-    const path = `${user.id}/debt-documents/${debtId}/${crypto.randomUUID()}-${documentFile.name}`;
-    const { error: uploadError } = await supabase.storage.from("attachments").upload(path, documentFile, {
-      cacheControl: "3600",
-      upsert: false
-    });
-    if (uploadError) throw new Error(uploadError.message);
+    const uploaded = new Map<string, string>();
 
-    const response = await fetch(`/api/debts/${debtId}/documents`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        file_name: documentFile.name,
-        file_path: path,
-        mime_type: documentFile.type,
-        size_bytes: documentFile.size
-      })
-    });
-    const json = await response.json();
-    if (!response.ok) throw new Error(json.error ?? "No se pudo guardar el documento.");
-    return json.id as string;
+    for (const documentFile of documentFiles) {
+      const path = `${user.id}/debt-documents/${debtId}/${crypto.randomUUID()}-${documentFile.name}`;
+      const { error: uploadError } = await supabase.storage.from("attachments").upload(path, documentFile, {
+        cacheControl: "3600",
+        upsert: false
+      });
+      if (uploadError) throw new Error(uploadError.message);
+
+      const response = await fetch(`/api/debts/${debtId}/documents`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          file_name: documentFile.name,
+          file_path: path,
+          mime_type: documentFile.type,
+          size_bytes: documentFile.size
+        })
+      });
+      const json = await response.json();
+      if (!response.ok) throw new Error(json.error ?? "No se pudo guardar el documento.");
+      uploaded.set(documentFile.name, json.id as string);
+    }
+
+    return uploaded;
   };
 
   const onSubmit = form.handleSubmit(async (values) => {
     setServerError(null);
     try {
-      if (documentFile && !documentChecked) {
-        toast.error("Analiza el documento antes de guardar la deuda.");
+      if (documentFiles.length > 0 && !documentChecked) {
+        toast.error("Analiza los documentos antes de guardar la deuda.");
         return;
       }
 
@@ -222,7 +281,11 @@ export function DebtOnboardingForm() {
       }
 
       const debtId = json.id as string;
-      const documentId = await uploadDocument(debtId);
+      const documentIds = await uploadDocuments(debtId);
+      const installmentDocumentId =
+        (installmentsSourceFileName ? documentIds.get(installmentsSourceFileName) : null) ??
+        documentIds.values().next().value ??
+        null;
 
       for (const installment of previewRows) {
         const createResponse = await fetch(`/api/debts/${debtId}/installments`, {
@@ -234,7 +297,7 @@ export function DebtOnboardingForm() {
             installment_number: installment.installment_number,
             due_date: installment.due_date,
             scheduled_amount: installment.scheduled_amount,
-            document_id: documentId
+            document_id: installmentDocumentId
           })
         });
         const installmentJson = await createResponse.json();
@@ -273,6 +336,41 @@ export function DebtOnboardingForm() {
     }
   });
 
+  const fieldSummary = [
+    {
+      label: "Acreedor",
+      value: form.watch("creditor") || "Sin dato",
+      source: renderSource(fieldSources.creditor ?? null)
+    },
+    {
+      label: "Principal",
+      value: form.watch("principal") ? Number(form.watch("principal")).toFixed(2) : "Sin dato",
+      source: renderSource(fieldSources.principal ?? null)
+    },
+    {
+      label: "Plazo",
+      value: form.watch("term_months") ? `${form.watch("term_months")} meses` : "Sin dato",
+      source: renderSource(fieldSources.term_months ?? null)
+    },
+    {
+      label: "Cuota",
+      value: form.watch("installment_amount")
+        ? Number(form.watch("installment_amount")).toFixed(2)
+        : "Sin dato",
+      source: renderSource(fieldSources.installment_amount ?? null)
+    },
+    {
+      label: "Interes %",
+      value: form.watch("interest_rate") != null ? String(form.watch("interest_rate")) : "Sin dato",
+      source: renderSource(fieldSources.interest_rate ?? null)
+    },
+    {
+      label: "Fecha inicio",
+      value: form.watch("start_date") || "Sin dato",
+      source: renderSource(fieldSources.start_date ?? null)
+    }
+  ];
+
   return (
     <form className="space-y-6" onSubmit={onSubmit}>
       <div className="rounded-2xl border border-ink-100 bg-white p-5 shadow-soft">
@@ -284,8 +382,12 @@ export function DebtOnboardingForm() {
               onChange={(event) => {
                 const nextType = event.target.value as DebtType;
                 form.setValue("type", nextType, { shouldDirty: true });
+                setDocumentFiles([]);
                 setDocumentChecked(false);
                 setInstallments([]);
+                setAnalysisDocuments([]);
+                setFieldSources({});
+                setInstallmentsSourceFileName(null);
               }}
             >
               <option value="LOAN">Prestamo</option>
@@ -313,50 +415,162 @@ export function DebtOnboardingForm() {
         <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_auto]">
           <Input
             accept={ALLOWED_ATTACHMENT_MIME_TYPES.join(",")}
+            multiple
             onChange={(event) => {
-              const selected = event.target.files?.[0] ?? null;
-              if (!selected) {
-                setDocumentFile(null);
+              const selected = Array.from(event.target.files ?? []);
+              if (selected.length === 0) {
+                setDocumentFiles([]);
                 setDocumentChecked(false);
+                setAnalysisDocuments([]);
+                setFieldSources({});
+                setInstallmentsSourceFileName(null);
                 return;
               }
-              if (
-                !ALLOWED_ATTACHMENT_MIME_TYPES.includes(
-                  selected.type as (typeof ALLOWED_ATTACHMENT_MIME_TYPES)[number]
-                ) ||
-                selected.size > MAX_ATTACHMENT_SIZE_BYTES
-              ) {
-                toast.error("El archivo debe ser PDF, JPG o PNG y no superar 5MB.");
+              const invalid = selected.find(
+                (file) =>
+                  !ALLOWED_ATTACHMENT_MIME_TYPES.includes(
+                    file.type as (typeof ALLOWED_ATTACHMENT_MIME_TYPES)[number]
+                  ) || file.size > MAX_ATTACHMENT_SIZE_BYTES
+              );
+              if (invalid) {
+                toast.error("Todos los archivos deben ser PDF, JPG o PNG y no superar 5MB.");
                 return;
               }
-              setDocumentFile(selected);
+              setDocumentFiles(selected);
               setDocumentChecked(false);
+              setAnalysisDocuments([]);
+              setFieldSources({});
+              setInstallmentsSourceFileName(null);
             }}
             type="file"
           />
           <Button isLoading={analyzing} onClick={() => void analyzeDocument()} type="button">
-            Analizar documento
+            Analizar documentos
           </Button>
         </div>
-        {documentFile ? (
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-ink-500">
-            <span>Archivo seleccionado: {documentFile.name}</span>
-            {documentChecked ? (
-              <span className="rounded-full bg-emerald-100 px-2 py-1 font-semibold text-emerald-700">
-                Analizado
-              </span>
-            ) : (
-              <span className="rounded-full bg-amber-100 px-2 py-1 font-semibold text-amber-700">
-                Pendiente de analisis
-              </span>
-            )}
+        {documentFiles.length > 0 ? (
+          <div className="mt-3 space-y-2">
+            <div className="flex flex-wrap gap-2">
+              {documentFiles.map((file) => (
+                <span
+                  className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-ink-600 shadow-soft"
+                  key={file.name}
+                >
+                  {file.name}
+                </span>
+              ))}
+            </div>
+            <span
+              className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${
+                documentChecked ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"
+              }`}
+            >
+              {documentChecked ? "Analizados" : "Pendientes de analisis"}
+            </span>
           </div>
         ) : (
           <p className="mt-3 text-xs text-ink-500">
-            Puedes continuar manualmente si todavia no tienes el documento.
+            Puedes continuar manualmente si todavia no tienes los documentos.
           </p>
         )}
       </div>
+
+      {analysisDocuments.length > 0 ? (
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+          <div className="rounded-2xl border border-ink-100 bg-white p-5 shadow-soft">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold text-ink-900">Comparativa de documentos</h2>
+                <p className="text-sm text-ink-600">
+                  Aqui ves lo que extrajo cada archivo antes de fusionar los datos.
+                </p>
+              </div>
+            </div>
+            <div className="space-y-3">
+              {analysisDocuments.map((document) => (
+                <div className="rounded-xl border border-ink-100 bg-ink-50 p-4" key={document.file_name}>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <h3 className="text-sm font-semibold text-ink-900">{document.file_name}</h3>
+                      <p className="text-xs text-ink-500">
+                        {getCategoryLabel(document.document_category)}
+                        {document.isRelevant ? " · valido" : " · no valido"}
+                      </p>
+                    </div>
+                    <span
+                      className={`rounded-full px-2 py-1 text-xs font-semibold ${
+                        document.isRelevant
+                          ? "bg-emerald-100 text-emerald-700"
+                          : "bg-red-100 text-red-700"
+                      }`}
+                    >
+                      {document.isRelevant ? "Detectado" : "Descartado"}
+                    </span>
+                  </div>
+                  {document.reason ? <p className="mt-2 text-xs text-red-600">{document.reason}</p> : null}
+                  <div className="mt-3 grid grid-cols-2 gap-3 text-sm md:grid-cols-3">
+                    <div>
+                      <p className="text-xs uppercase text-ink-500">Acreedor</p>
+                      <p className="font-medium text-ink-800">{document.creditor ?? "-"}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase text-ink-500">Principal</p>
+                      <p className="font-medium text-ink-800">
+                        {document.principal != null ? document.principal.toFixed(2) : "-"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase text-ink-500">Plazo</p>
+                      <p className="font-medium text-ink-800">{document.term_months ?? "-"}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase text-ink-500">Cuota</p>
+                      <p className="font-medium text-ink-800">
+                        {document.installment_amount != null
+                          ? document.installment_amount.toFixed(2)
+                          : "-"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase text-ink-500">Interes %</p>
+                      <p className="font-medium text-ink-800">
+                        {document.interest_rate != null ? document.interest_rate : "-"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase text-ink-500">Inicio</p>
+                      <p className="font-medium text-ink-800">{document.start_date ?? "-"}</p>
+                    </div>
+                  </div>
+                  <p className="mt-3 text-xs text-ink-500">
+                    Letras detectadas: {document.installments.length}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-ink-100 bg-white p-5 shadow-soft">
+            <h2 className="text-lg font-semibold text-ink-900">Origen del autofill</h2>
+            <p className="mt-1 text-sm text-ink-600">
+              Esta fusion prioriza la tabla para letras y el mejor documento disponible para cada campo.
+            </p>
+            <div className="mt-4 space-y-3">
+              {fieldSummary.map((field) => (
+                <div className="rounded-xl border border-ink-100 bg-ink-50 p-3" key={field.label}>
+                  <p className="text-xs uppercase text-ink-500">{field.label}</p>
+                  <p className="mt-1 font-semibold text-ink-900">{field.value}</p>
+                  <p className="mt-1 text-xs text-ink-500">{field.source}</p>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 rounded-xl border border-emerald-100 bg-emerald-50 p-3 text-sm text-emerald-800">
+              La fusion es segura: no guarda nada automaticamente en base de datos. Solo propone valores en el
+              formulario y puedes corregirlos antes de crear la deuda.
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <div className="rounded-2xl border border-ink-100 bg-white p-5 shadow-soft">
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">

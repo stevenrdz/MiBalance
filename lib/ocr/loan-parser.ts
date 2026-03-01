@@ -1,4 +1,5 @@
 type DebtDocumentType = "LOAN" | "CASH_ADVANCE" | "DEFERRED";
+type DocumentCategory = "CONTRACT" | "AMORTIZATION_TABLE" | "STATEMENT" | "UNKNOWN";
 
 export type LoanInstallmentDraft = {
   installment_number: number;
@@ -11,10 +12,12 @@ export type LoanDocumentAutofill = {
   isRelevant: boolean;
   reason?: string;
   detectedType?: DebtDocumentType;
+  document_category?: DocumentCategory;
   creditor?: string;
   principal?: number;
   term_months?: number;
   installment_amount?: number;
+  interest_rate?: number;
   start_date?: string;
   installments: LoanInstallmentDraft[];
 };
@@ -92,6 +95,7 @@ function extractAmounts(line: string) {
 function toIsoDate(raw: string) {
   const match = raw.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
   if (!match) return null;
+
   const day = Number(match[1]);
   const month = Number(match[2]);
   const year = Number(match[3].length === 2 ? `20${match[3]}` : match[3]);
@@ -221,6 +225,36 @@ function extractDetectedType(source: string) {
   return TYPE_PATTERNS.find((entry) => entry.pattern.test(source))?.type ?? "LOAN";
 }
 
+function extractDocumentCategory(
+  source: string,
+  normalizedSource: string,
+  installments: LoanInstallmentDraft[]
+): DocumentCategory {
+  if (
+    /\bCONTRATO\b/.test(normalizedSource) ||
+    /\bLIQUIDACION\b/.test(normalizedSource) ||
+    /\bCARTA\b/.test(normalizedSource) ||
+    /\bOPERACION\s+NO\b/.test(normalizedSource)
+  ) {
+    return "CONTRACT";
+  }
+
+  if (
+    installments.length >= 3 ||
+    /\bTABLA\s+DE\s+AMORTIZACION\b/.test(normalizedSource) ||
+    /\bTABLAAMORTIZACION\b/.test(normalizedSource) ||
+    /\bDIV\.?\s+TOTAL\b/.test(normalizedSource)
+  ) {
+    return "AMORTIZATION_TABLE";
+  }
+
+  if (/\bESTADO\s+DE\s+CUENTA\b/.test(normalizedSource) || /\bCORTE\b/.test(source)) {
+    return "STATEMENT";
+  }
+
+  return "UNKNOWN";
+}
+
 function extractPrincipal(source: string, normalizedSource: string) {
   const principalLabel =
     source.match(
@@ -238,10 +272,10 @@ function extractTermMonths(source: string, normalizedSource: string, installment
   if (installments.length > 1) return installments.length;
 
   const termMonthsFromText =
+    source.match(/\bN(?:[ÚU]?|M?)MERO\s+DE\s+CUOTAS[^\d]{0,20}(\d{1,3})\b/i) ??
+    normalizedSource.match(/\bN(?:U?|M?)MERO\s+DE\s+CUOTAS[^\d]{0,20}(\d{1,3})\b/i) ??
     source.match(/\b(\d{1,3})\s+(?:CUOTAS|DIVIDENDOS|MESES)\b/i) ??
-    normalizedSource.match(/\b(\d{1,3})\s+(?:CUOTAS|DIVIDENDOS|MESES)\b/i) ??
-    source.match(/\bNUMERO\s+DE\s+CUOTAS[^\d]{0,20}(\d{1,3})\b/i) ??
-    normalizedSource.match(/\bNUMERO DE CUOTAS[^\d]{0,20}(\d{1,3})\b/i);
+    normalizedSource.match(/\b(\d{1,3})\s+(?:CUOTAS|DIVIDENDOS|MESES)\b/i);
 
   return termMonthsFromText ? Number(termMonthsFromText[1]) : undefined;
 }
@@ -253,6 +287,21 @@ function extractInstallmentAmount(source: string, installments: LoanInstallmentD
     )?.[1] ?? undefined;
 
   return (installmentAmountLabel ? normalizeAmount(installmentAmountLabel) : null) ?? installments[0]?.scheduled_amount;
+}
+
+function extractInterestRate(source: string, normalizedSource: string) {
+  const interestLabel =
+    source.match(
+      /\bTASA\s+DE\s+INTER[ÉE]S(?:\s+NOMINAL)?\b[^\d]{0,20}(\d{1,3}(?:[.,]\d{1,4})?)/i
+    )?.[1] ??
+    normalizedSource.match(
+      /\bTASA DE INTERES(?:\s+NOMINAL)?\b[^\d]{0,20}(\d{1,3}(?:[.,]\d{1,4})?)/i
+    )?.[1] ??
+    source.match(/\bTASA\s+INTERES\b[^\d]{0,20}(\d{1,3}(?:[.,]\d{1,4})?)/i)?.[1] ??
+    normalizedSource.match(/\bTASA INTERES\b[^\d]{0,20}(\d{1,3}(?:[.,]\d{1,4})?)/i)?.[1] ??
+    undefined;
+
+  return interestLabel ? normalizeAmount(interestLabel) ?? undefined : undefined;
 }
 
 function extractStartDate(source: string, installments: LoanInstallmentDraft[]) {
@@ -303,18 +352,22 @@ export function parseLoanDocument(text: string, fileName: string, expectedType?:
   const creditor = BANK_PATTERNS.find(
     (item) => item.pattern.test(source) || item.pattern.test(normalizedSource)
   )?.name;
+  const document_category = extractDocumentCategory(source, normalizedSource, installments);
   const principal = extractPrincipal(source, normalizedSource);
   const term_months = extractTermMonths(source, normalizedSource, installments);
   const installment_amount = extractInstallmentAmount(source, installments);
+  const interest_rate = extractInterestRate(source, normalizedSource);
   const start_date = extractStartDate(source, installments);
 
   return {
     isRelevant: true,
     detectedType,
+    document_category,
     creditor,
     principal: principal ?? undefined,
     term_months,
     installment_amount: installment_amount ?? undefined,
+    interest_rate: interest_rate ?? undefined,
     start_date,
     installments
   } satisfies LoanDocumentAutofill;
