@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ALLOWED_ATTACHMENT_MIME_TYPES, MAX_ATTACHMENT_SIZE_BYTES } from "@/lib/constants";
-import { createClient } from "@/lib/supabase/browser";
 
 function getDebtDocumentCopy(type: "LOAN" | "CASH_ADVANCE" | "DEFERRED") {
   if (type === "CASH_ADVANCE") {
@@ -49,30 +48,11 @@ export function DebtDocumentForm({
     setError(null);
 
     try {
-      const supabase = createClient();
-      const {
-        data: { user }
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("Sesion no encontrada.");
-
-      const path = `${user.id}/debt-documents/${debtId}/${crypto.randomUUID()}-${file.name}`;
-      const { error: uploadError } = await supabase.storage.from("attachments").upload(path, file, {
-        cacheControl: "3600",
-        upsert: false
-      });
-      if (uploadError) throw new Error(uploadError.message);
-
+      const payload = new FormData();
+      payload.set("file", file);
       const response = await fetch(`/api/debts/${debtId}/documents`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          file_name: file.name,
-          file_path: path,
-          mime_type: file.type,
-          size_bytes: file.size
-        })
+        body: payload
       });
       const json = await response.json();
       if (!response.ok) throw new Error(json.error ?? "No se pudo guardar el documento.");

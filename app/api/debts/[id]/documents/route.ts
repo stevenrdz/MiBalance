@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { MAX_ATTACHMENT_SIZE_BYTES } from "@/lib/constants";
 import { debtDocumentSchema } from "@/lib/schemas/domain";
 import { apiServerError, apiUnauthorized, apiValidationError } from "@/lib/api";
 import { getAuthenticatedClient } from "@/lib/supabase/guard";
@@ -8,12 +9,6 @@ type Params = { params: Promise<{ id: string }> };
 export async function POST(request: Request, { params }: Params) {
   try {
     const { id } = await params;
-    const payload = await request.json();
-    const parsed = debtDocumentSchema.safeParse(payload);
-    if (!parsed.success) {
-      return apiValidationError("Documento de prestamo invalido.", parsed.error.flatten());
-    }
-
     const { supabase, user } = await getAuthenticatedClient();
     if (!user) return apiUnauthorized();
 
@@ -26,15 +21,54 @@ export async function POST(request: Request, { params }: Params) {
       .single();
     if (!debt) return apiValidationError("Deuda no encontrada.");
 
+    const contentType = request.headers.get("content-type") ?? "";
+    let parsed:
+      | { file_name: string; file_path: string; mime_type: string; size_bytes: number }
+      | null = null;
+
+    if (contentType.includes("multipart/form-data")) {
+      const formData = await request.formData();
+      const fileEntry = formData.get("file");
+      if (!(fileEntry instanceof File)) {
+        return apiValidationError("Debes enviar un archivo valido.");
+      }
+      if (fileEntry.size > MAX_ATTACHMENT_SIZE_BYTES) {
+        return apiValidationError("El documento excede el tamano maximo de 5MB.");
+      }
+
+      const path = `${user.id}/debt-documents/${id}/${crypto.randomUUID()}-${fileEntry.name}`;
+      const { error: uploadError } = await supabase.storage
+        .from("attachments")
+        .upload(path, fileEntry, {
+          cacheControl: "3600",
+          upsert: false
+        });
+      if (uploadError) return apiValidationError(uploadError.message);
+
+      parsed = {
+        file_name: fileEntry.name,
+        file_path: path,
+        mime_type: fileEntry.type,
+        size_bytes: fileEntry.size
+      };
+    } else {
+      const payload = await request.json();
+      const schemaResult = debtDocumentSchema.safeParse(payload);
+      if (!schemaResult.success) {
+        return apiValidationError("Documento de prestamo invalido.", schemaResult.error.flatten());
+      }
+      parsed = schemaResult.data;
+    }
+
     const { data, error } = await supabase
       .from("debt_documents")
       .insert({
         user_id: user.id,
         debt_id: id,
-        file_name: parsed.data.file_name,
-        file_path: parsed.data.file_path,
-        mime_type: parsed.data.mime_type,
-        size_bytes: parsed.data.size_bytes
+        file_name: parsed.file_name,
+        file_path: parsed.file_path,
+        mime_type: parsed.mime_type,
+        size_bytes: parsed.size_bytes
       })
       .select("id")
       .single();

@@ -9,7 +9,6 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { ALLOWED_ATTACHMENT_MIME_TYPES, MAX_ATTACHMENT_SIZE_BYTES } from "@/lib/constants";
 import { debtPaymentSchema, type DebtPaymentInput } from "@/lib/schemas/domain";
-import { createClient } from "@/lib/supabase/browser";
 
 type InstallmentOption = {
   number: number;
@@ -42,44 +41,21 @@ export function DebtPaymentForm({ debtId, installments }: DebtPaymentFormProps) 
     }
   });
 
-  const uploadReceipt = async () => {
-    if (!receipt) return null;
-
-    const supabase = createClient();
-    const {
-      data: { user }
-    } = await supabase.auth.getUser();
-    if (!user) throw new Error("Sesion no encontrada para cargar comprobante.");
-
-    const path = `${user.id}/debt-payments/${debtId}/${crypto.randomUUID()}-${receipt.name}`;
-    const { error } = await supabase.storage.from("attachments").upload(path, receipt, {
-      cacheControl: "3600",
-      upsert: false
-    });
-    if (error) throw new Error(error.message);
-
-    return {
-      receipt_file_name: receipt.name,
-      receipt_file_path: path,
-      receipt_mime_type: receipt.type,
-      receipt_size_bytes: receipt.size
-    };
-  };
-
   const onSubmit = form.handleSubmit(async (values) => {
     setServerError(null);
 
     try {
-      const receiptMetadata = await uploadReceipt();
+      const payload = new FormData();
+      payload.set("payment_date", values.payment_date);
+      payload.set("installment_number", String(values.installment_number));
+      payload.set("amount", String(values.amount));
+      payload.set("payment_method", values.payment_method);
+      payload.set("notes", values.notes ?? "");
+      if (receipt) payload.set("receipt", receipt);
+
       const response = await fetch(`/api/debts/${debtId}/payments`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          ...values,
-          ...receiptMetadata
-        })
+        body: payload
       });
       const json = await response.json();
       if (!response.ok) {

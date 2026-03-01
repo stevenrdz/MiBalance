@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { MAX_ATTACHMENT_SIZE_BYTES } from "@/lib/constants";
 import { settleDebtInstallmentSchema } from "@/lib/schemas/domain";
 import { apiServerError, apiUnauthorized, apiValidationError } from "@/lib/api";
 import { getAuthenticatedClient } from "@/lib/supabase/guard";
@@ -8,14 +9,48 @@ type Params = { params: Promise<{ id: string; installmentId: string }> };
 export async function PATCH(request: Request, { params }: Params) {
   try {
     const { id, installmentId } = await params;
-    const payload = await request.json();
+    const { supabase, user } = await getAuthenticatedClient();
+    if (!user) return apiUnauthorized();
+
+    const contentType = request.headers.get("content-type") ?? "";
+    let payload: Record<string, FormDataEntryValue | null | undefined>;
+
+    if (contentType.includes("multipart/form-data")) {
+      const formData = await request.formData();
+      payload = {
+        status: formData.get("status"),
+        paid_amount: formData.get("paid_amount"),
+        paid_at: formData.get("paid_at"),
+        payment_method: formData.get("payment_method"),
+        notes: formData.get("notes")
+      };
+
+      const receipt = formData.get("receipt");
+      if (receipt instanceof File) {
+        if (receipt.size > MAX_ATTACHMENT_SIZE_BYTES) {
+          return apiValidationError("El comprobante excede el tamano maximo de 5MB.");
+        }
+
+        const path = `${user.id}/debt-installments/${id}/${crypto.randomUUID()}-${receipt.name}`;
+        const { error: uploadError } = await supabase.storage.from("attachments").upload(path, receipt, {
+          cacheControl: "3600",
+          upsert: false
+        });
+        if (uploadError) return apiValidationError(uploadError.message);
+
+        payload.receipt_file_name = receipt.name;
+        payload.receipt_file_path = path;
+        payload.receipt_mime_type = receipt.type;
+        payload.receipt_size_bytes = String(receipt.size);
+      }
+    } else {
+      payload = await request.json();
+    }
+
     const parsed = settleDebtInstallmentSchema.safeParse(payload);
     if (!parsed.success) {
       return apiValidationError("Datos invalidos para confirmar letra.", parsed.error.flatten());
     }
-
-    const { supabase, user } = await getAuthenticatedClient();
-    if (!user) return apiUnauthorized();
 
     const { data: installment, error: installmentError } = await supabase
       .from("debt_installments")

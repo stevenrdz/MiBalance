@@ -12,7 +12,6 @@ import {
   settleDebtInstallmentSchema,
   type SettleDebtInstallmentInput
 } from "@/lib/schemas/domain";
-import { createClient } from "@/lib/supabase/browser";
 
 type InstallmentOption = {
   id: string;
@@ -49,43 +48,20 @@ export function DebtInstallmentSettlementForm({
 
   const [installmentId, setInstallmentId] = useState(first?.id ?? "");
 
-  const uploadReceipt = async () => {
-    if (!receipt) return null;
-
-    const supabase = createClient();
-    const {
-      data: { user }
-    } = await supabase.auth.getUser();
-    if (!user) throw new Error("Sesion no encontrada.");
-
-    const path = `${user.id}/debt-installments/${debtId}/${crypto.randomUUID()}-${receipt.name}`;
-    const { error: uploadError } = await supabase.storage.from("attachments").upload(path, receipt, {
-      cacheControl: "3600",
-      upsert: false
-    });
-    if (uploadError) throw new Error(uploadError.message);
-
-    return {
-      receipt_file_name: receipt.name,
-      receipt_file_path: path,
-      receipt_mime_type: receipt.type,
-      receipt_size_bytes: receipt.size
-    };
-  };
-
   const onSubmit = form.handleSubmit(async (values) => {
     setError(null);
     try {
-      const receiptMetadata = await uploadReceipt();
+      const payload = new FormData();
+      payload.set("status", values.status);
+      payload.set("paid_amount", String(values.paid_amount));
+      payload.set("paid_at", values.paid_at ?? "");
+      payload.set("payment_method", values.payment_method ?? "");
+      payload.set("notes", values.notes ?? "");
+      if (receipt) payload.set("receipt", receipt);
+
       const response = await fetch(`/api/debts/${debtId}/installments/${installmentId}`, {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          ...values,
-          ...receiptMetadata
-        })
+        body: payload
       });
       const json = await response.json();
       if (!response.ok) throw new Error(json.error ?? "No se pudo confirmar la letra.");
