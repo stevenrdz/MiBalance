@@ -22,6 +22,8 @@ type ScheduleRow = {
   paidAmount: number;
   status: string;
   receiptFileName?: string | null;
+  receiptPreviewUrl?: string | null;
+  receiptDownloadUrl?: string | null;
 };
 
 type DocumentRow = {
@@ -29,6 +31,8 @@ type DocumentRow = {
   file_name: string;
   mime_type: string;
   created_at: string;
+  preview_url?: string | null;
+  download_url?: string | null;
 };
 
 type PaymentRow = {
@@ -38,8 +42,48 @@ type PaymentRow = {
   payment_method?: string | null;
   notes?: string | null;
   receipt_file_name?: string | null;
+  preview_url?: string | null;
+  download_url?: string | null;
   amount: number | string;
 };
+
+function AttachmentLinks({
+  previewUrl,
+  downloadUrl,
+  label
+}: {
+  previewUrl?: string | null;
+  downloadUrl?: string | null;
+  label?: string | null;
+}) {
+  if (!previewUrl && !downloadUrl) return <span>-</span>;
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {previewUrl ? (
+        <a
+          className="rounded-full border border-ink-200 px-3 py-1 text-xs font-semibold text-ink-700"
+          href={previewUrl}
+          rel="noreferrer"
+          target="_blank"
+        >
+          Ver
+        </a>
+      ) : null}
+      {downloadUrl ? (
+        <a
+          className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700"
+          href={downloadUrl}
+          rel="noreferrer"
+          target="_blank"
+        >
+          Descargar
+        </a>
+      ) : null}
+      {label ? <span className="text-xs text-ink-500">{label}</span> : null}
+    </div>
+  );
+}
 
 function hasPersistedId(item: unknown): item is {
   id: string;
@@ -129,7 +173,7 @@ export default async function DebtDetailPage({ params }: DebtDetailPageProps) {
       </Card>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <DebtDocumentForm debtId={detail.debt.id} />
+        <DebtDocumentForm debtId={detail.debt.id} debtType={detail.debt.type} />
         <DebtInstallmentGeneratorForm debtId={detail.debt.id} />
       </div>
 
@@ -189,7 +233,13 @@ export default async function DebtDetailPage({ params }: DebtDetailPageProps) {
           {
             key: "receiptFileName",
             header: "Comprobante",
-            render: (row) => String((row as { receiptFileName?: string | null }).receiptFileName ?? "-")
+            render: (row) => (
+              <AttachmentLinks
+                downloadUrl={row.receiptDownloadUrl}
+                label={row.receiptFileName}
+                previewUrl={row.receiptPreviewUrl}
+              />
+            )
           }
         ]}
         keyExtractor={(row) => (row.id ? String(row.id) : String(row.number))}
@@ -212,6 +262,17 @@ export default async function DebtDetailPage({ params }: DebtDetailPageProps) {
             key: "created_at",
             header: "Subido",
             render: (row) => formatDateEc(row.created_at)
+          },
+          {
+            key: "preview_url",
+            header: "Archivo",
+            render: (row) => (
+              <AttachmentLinks
+                downloadUrl={row.download_url}
+                label={row.file_name}
+                previewUrl={row.preview_url}
+              />
+            )
           }
         ]}
         emptyMessage="Aun no hay documentos cargados para esta deuda."
@@ -244,7 +305,13 @@ export default async function DebtDetailPage({ params }: DebtDetailPageProps) {
           {
             key: "receipt_file_name",
             header: "Comprobante",
-            render: (row) => row.receipt_file_name ?? "Sin archivo"
+            render: (row) => (
+              <AttachmentLinks
+                downloadUrl={row.download_url}
+                label={row.receipt_file_name ?? "Sin archivo"}
+                previewUrl={row.preview_url}
+              />
+            )
           },
           {
             key: "amount",

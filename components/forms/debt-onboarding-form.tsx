@@ -21,6 +21,40 @@ type DraftInstallment = {
   paid_at: string;
 };
 
+type DebtType = DebtInput["type"];
+
+const TYPE_COPY: Record<
+  DebtType,
+  {
+    title: string;
+    documentLabel: string;
+    documentDescription: string;
+    scheduleTitle: string;
+  }
+> = {
+  LOAN: {
+    title: "Prestamo",
+    documentLabel: "Documento del prestamo",
+    documentDescription:
+      "Sube el contrato o la tabla de amortizacion. Si el archivo es valido, la app completara los campos y detectara las letras.",
+    scheduleTitle: "Letras detectadas"
+  },
+  CASH_ADVANCE: {
+    title: "Avance en efectivo",
+    documentLabel: "Documento del avance",
+    documentDescription:
+      "Sube el contrato, tabla o estado donde aparezcan las letras del avance para completar el plan de pagos.",
+    scheduleTitle: "Letras del avance"
+  },
+  DEFERRED: {
+    title: "Diferido",
+    documentLabel: "Documento del diferido",
+    documentDescription:
+      "Sube el comprobante o estado del diferido para detectar cuotas, fechas y montos automaticamente.",
+    scheduleTitle: "Cuotas detectadas"
+  }
+};
+
 export function DebtOnboardingForm() {
   const router = useRouter();
   const toast = useToast();
@@ -47,16 +81,12 @@ export function DebtOnboardingForm() {
   });
 
   const selectedType = form.watch("type");
+  const selectedCopy = TYPE_COPY[selectedType];
 
   const previewRows = useMemo(() => {
     if (installments.length) return installments;
     const values = form.getValues();
-    if (
-      selectedType !== "LOAN" ||
-      !values.term_months ||
-      !values.installment_amount ||
-      !values.start_date
-    ) {
+    if (!values.term_months || !values.installment_amount || !values.start_date) {
       return [];
     }
 
@@ -74,7 +104,7 @@ export function DebtOnboardingForm() {
       paid: false,
       paid_at: new Date().toISOString().slice(0, 10)
     }));
-  }, [form, installments, selectedType]);
+  }, [form, installments]);
 
   const updatePreviewRow = (index: number, updater: (row: DraftInstallment) => DraftInstallment) => {
     setInstallments((current) => {
@@ -85,7 +115,7 @@ export function DebtOnboardingForm() {
 
   const analyzeDocument = async () => {
     if (!documentFile) {
-      toast.error("Selecciona un PDF o imagen del prestamo.");
+      toast.error(`Selecciona un PDF o imagen de ${selectedCopy.title.toLowerCase()}.`);
       return;
     }
 
@@ -94,6 +124,7 @@ export function DebtOnboardingForm() {
     try {
       const payload = new FormData();
       payload.set("file", documentFile);
+      payload.set("expectedType", selectedType);
       const response = await fetch("/api/ocr/loan-document", {
         method: "POST",
         body: payload
@@ -105,7 +136,7 @@ export function DebtOnboardingForm() {
       if (!json.isRelevant) {
         setDocumentChecked(false);
         setInstallments([]);
-        toast.error(json.reason ?? "El documento no parece corresponder a un prestamo.");
+        toast.error(json.reason ?? `El documento no parece corresponder a ${selectedCopy.title.toLowerCase()}.`);
         return;
       }
 
@@ -125,12 +156,9 @@ export function DebtOnboardingForm() {
           }))
         );
         form.setValue("term_months", json.installments.length, { shouldDirty: true });
-        form.setValue("installment_amount", Number(json.installments[0].scheduled_amount), {
-          shouldDirty: true
-        });
       }
 
-      toast.success("Documento analizado. Revisa y ajusta los campos antes de guardar.");
+      toast.success("Documento analizado. Revisa los datos detectados antes de guardar.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "No se pudo analizar el documento.");
     } finally {
@@ -174,8 +202,8 @@ export function DebtOnboardingForm() {
   const onSubmit = form.handleSubmit(async (values) => {
     setServerError(null);
     try {
-      if (values.type === "LOAN" && documentFile && !documentChecked) {
-        toast.error("Analiza el documento del prestamo antes de guardar.");
+      if (documentFile && !documentChecked) {
+        toast.error("Analiza el documento antes de guardar la deuda.");
         return;
       }
 
@@ -215,22 +243,19 @@ export function DebtOnboardingForm() {
         }
 
         if (installment.paid) {
-          const settleResponse = await fetch(
-            `/api/debts/${debtId}/installments/${installmentJson.id}`,
-            {
-              method: "PATCH",
-              headers: {
-                "Content-Type": "application/json"
-              },
-              body: JSON.stringify({
-                status: "PAID",
-                paid_amount: installment.scheduled_amount,
-                paid_at: installment.paid_at,
-                payment_method: "transfer",
-                notes: "Marcada como pagada durante la carga inicial"
-              })
-            }
-          );
+          const settleResponse = await fetch(`/api/debts/${debtId}/installments/${installmentJson.id}`, {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              status: "PAID",
+              paid_amount: installment.scheduled_amount,
+              paid_at: installment.paid_at,
+              payment_method: "transfer",
+              notes: "Marcada como pagada durante la carga inicial"
+            })
+          });
           const settleJson = await settleResponse.json();
           if (!settleResponse.ok) {
             throw new Error(settleJson.error ?? "No se pudo marcar una letra como pagada.");
@@ -238,7 +263,7 @@ export function DebtOnboardingForm() {
         }
       }
 
-      toast.success("Deuda creada correctamente.");
+      toast.success(`${selectedCopy.title} registrada correctamente.`);
       router.push(`/debts/${debtId}`);
       router.refresh();
     } catch (error) {
@@ -257,12 +282,10 @@ export function DebtOnboardingForm() {
             <Select
               {...form.register("type")}
               onChange={(event) => {
-                form.setValue("type", event.target.value as DebtInput["type"], { shouldDirty: true });
-                if (event.target.value !== "LOAN") {
-                  setDocumentFile(null);
-                  setDocumentChecked(false);
-                  setInstallments([]);
-                }
+                const nextType = event.target.value as DebtType;
+                form.setValue("type", nextType, { shouldDirty: true });
+                setDocumentChecked(false);
+                setInstallments([]);
               }}
             >
               <option value="LOAN">Prestamo</option>
@@ -277,59 +300,70 @@ export function DebtOnboardingForm() {
         </div>
       </div>
 
-      {selectedType === "LOAN" ? (
-        <div className="rounded-2xl border border-ink-100 bg-gradient-to-br from-emerald-50 via-white to-amber-50 p-5 shadow-soft">
-          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-semibold text-ink-900">Documento del prestamo</h2>
-              <p className="text-sm text-ink-600">
-                Sube primero el PDF o imagen del prestamo para analizarlo y completar el formulario.
-              </p>
-            </div>
-            <div className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-ink-600 shadow-soft">
-              Paso 1
-            </div>
+      <div className="rounded-2xl border border-ink-100 bg-gradient-to-br from-emerald-50 via-white to-amber-50 p-5 shadow-soft">
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-ink-900">{selectedCopy.documentLabel}</h2>
+            <p className="text-sm text-ink-600">{selectedCopy.documentDescription}</p>
           </div>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_auto]">
-            <Input
-              accept={ALLOWED_ATTACHMENT_MIME_TYPES.join(",")}
-              onChange={(event) => {
-                const selected = event.target.files?.[0] ?? null;
-                if (!selected) {
-                  setDocumentFile(null);
-                  setDocumentChecked(false);
-                  return;
-                }
-                if (
-                  !ALLOWED_ATTACHMENT_MIME_TYPES.includes(
-                    selected.type as (typeof ALLOWED_ATTACHMENT_MIME_TYPES)[number]
-                  ) ||
-                  selected.size > MAX_ATTACHMENT_SIZE_BYTES
-                ) {
-                  toast.error("El archivo debe ser PDF, JPG o PNG y no superar 5MB.");
-                  return;
-                }
-                setDocumentFile(selected);
-                setDocumentChecked(false);
-              }}
-              type="file"
-            />
-            <Button isLoading={analyzing} onClick={() => void analyzeDocument()} type="button">
-              Analizar documento
-            </Button>
+          <div className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-ink-600 shadow-soft">
+            Paso 1
           </div>
-          {documentFile ? (
-            <p className="mt-2 text-xs text-ink-500">Archivo seleccionado: {documentFile.name}</p>
-          ) : null}
         </div>
-      ) : null}
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_auto]">
+          <Input
+            accept={ALLOWED_ATTACHMENT_MIME_TYPES.join(",")}
+            onChange={(event) => {
+              const selected = event.target.files?.[0] ?? null;
+              if (!selected) {
+                setDocumentFile(null);
+                setDocumentChecked(false);
+                return;
+              }
+              if (
+                !ALLOWED_ATTACHMENT_MIME_TYPES.includes(
+                  selected.type as (typeof ALLOWED_ATTACHMENT_MIME_TYPES)[number]
+                ) ||
+                selected.size > MAX_ATTACHMENT_SIZE_BYTES
+              ) {
+                toast.error("El archivo debe ser PDF, JPG o PNG y no superar 5MB.");
+                return;
+              }
+              setDocumentFile(selected);
+              setDocumentChecked(false);
+            }}
+            type="file"
+          />
+          <Button isLoading={analyzing} onClick={() => void analyzeDocument()} type="button">
+            Analizar documento
+          </Button>
+        </div>
+        {documentFile ? (
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-ink-500">
+            <span>Archivo seleccionado: {documentFile.name}</span>
+            {documentChecked ? (
+              <span className="rounded-full bg-emerald-100 px-2 py-1 font-semibold text-emerald-700">
+                Analizado
+              </span>
+            ) : (
+              <span className="rounded-full bg-amber-100 px-2 py-1 font-semibold text-amber-700">
+                Pendiente de analisis
+              </span>
+            )}
+          </div>
+        ) : (
+          <p className="mt-3 text-xs text-ink-500">
+            Puedes continuar manualmente si todavia no tienes el documento.
+          </p>
+        )}
+      </div>
 
       <div className="rounded-2xl border border-ink-100 bg-white p-5 shadow-soft">
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold text-ink-900">Datos de la deuda</h2>
             <p className="text-sm text-ink-600">
-              Ajusta los datos detectados o completa manualmente si no vienen en el documento.
+              Ajusta lo detectado o completa manualmente el plan de pagos de {selectedCopy.title.toLowerCase()}.
             </p>
           </div>
           <div className="rounded-full bg-ink-50 px-3 py-1 text-xs font-semibold text-ink-600">Paso 2</div>
@@ -375,16 +409,18 @@ export function DebtOnboardingForm() {
         </div>
       </div>
 
-      {selectedType === "LOAN" && previewRows.length ? (
+      {previewRows.length ? (
         <div className="rounded-2xl border border-ink-100 bg-white p-5 shadow-soft">
           <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h2 className="text-lg font-semibold text-ink-900">Letras detectadas</h2>
+              <h2 className="text-lg font-semibold text-ink-900">{selectedCopy.scheduleTitle}</h2>
               <p className="text-sm text-ink-600">
-                Revisa las letras, marca las pagadas y las vencidas se calcularan por fecha.
+                Revisa las cuotas, marca las pagadas y el estado vencido se calcula segun la fecha.
               </p>
             </div>
-            <div className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">Paso 3</div>
+            <div className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+              Paso 3
+            </div>
           </div>
 
           <div className="space-y-3">
@@ -478,7 +514,7 @@ export function DebtOnboardingForm() {
         </div>
       ) : null}
 
-      {serverError && <p className="text-sm text-red-600">{serverError}</p>}
+      {serverError ? <p className="text-sm text-red-600">{serverError}</p> : null}
 
       <div className="flex gap-2">
         <Button isLoading={form.formState.isSubmitting} type="submit">

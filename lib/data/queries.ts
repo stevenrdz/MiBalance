@@ -38,6 +38,31 @@ async function getCurrentUser() {
   return { supabase, user };
 }
 
+async function createSignedAttachmentUrls(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  path: string | null | undefined,
+  fileName?: string | null
+) {
+  if (!path) {
+    return {
+      preview_url: null,
+      download_url: null
+    };
+  }
+
+  const [{ data: previewData }, { data: downloadData }] = await Promise.all([
+    supabase.storage.from("attachments").createSignedUrl(path, 60 * 60),
+    supabase.storage
+      .from("attachments")
+      .createSignedUrl(path, 60 * 60, fileName ? { download: fileName } : { download: true })
+  ]);
+
+  return {
+    preview_url: previewData?.signedUrl ?? null,
+    download_url: downloadData?.signedUrl ?? null
+  };
+}
+
 export async function getCategories(includeInactive = false) {
   const { supabase, user } = await getCurrentUser();
   let query = supabase
@@ -446,7 +471,7 @@ export async function getDebtDetail(debtId: string) {
   const { data: installments, error: installmentsError } = await supabase
     .from("debt_installments")
     .select(
-      "id, document_id, installment_number, due_date, scheduled_amount, status, paid_amount, paid_at, payment_method, notes, receipt_file_name"
+      "id, document_id, installment_number, due_date, scheduled_amount, status, paid_amount, paid_at, payment_method, notes, receipt_file_name, receipt_file_path"
     )
     .eq("user_id", user.id)
     .eq("debt_id", debtId)
@@ -458,9 +483,35 @@ export async function getDebtDetail(debtId: string) {
   const totalPaid = debtPayments.reduce((acc, payment) => acc + Number(payment.amount), 0);
   const balance = Math.max(Number(debt.principal) - totalPaid, 0);
   const installmentRows = installments ?? [];
+  const documentsWithUrls = await Promise.all(
+    (documents ?? []).map(async (document) => ({
+      ...document,
+      ...(await createSignedAttachmentUrls(supabase, document.file_path, document.file_name))
+    }))
+  );
+  const paymentsWithUrls = await Promise.all(
+    debtPayments.map(async (payment) => ({
+      ...payment,
+      ...(await createSignedAttachmentUrls(
+        supabase,
+        payment.receipt_file_path ?? null,
+        payment.receipt_file_name ?? null
+      ))
+    }))
+  );
+  const installmentsWithUrls = await Promise.all(
+    installmentRows.map(async (item) => ({
+      ...item,
+      ...(await createSignedAttachmentUrls(
+        supabase,
+        item.receipt_file_path ?? null,
+        item.receipt_file_name ?? null
+      ))
+    }))
+  );
   const schedule =
-    installmentRows.length > 0
-      ? installmentRows.map((item) => ({
+    installmentsWithUrls.length > 0
+      ? installmentsWithUrls.map((item) => ({
           id: item.id,
           number: item.installment_number,
           label: `Letra ${item.installment_number}`,
@@ -471,6 +522,8 @@ export async function getDebtDetail(debtId: string) {
           status: getEffectiveInstallmentStatus(item),
           isCurrentInstallment: item.installment_number === debt.current_installment,
           receiptFileName: item.receipt_file_name ?? null,
+          receiptPreviewUrl: item.preview_url ?? null,
+          receiptDownloadUrl: item.download_url ?? null,
           paymentMethod: item.payment_method ?? null
         }))
       : buildDebtSchedule({
@@ -488,9 +541,9 @@ export async function getDebtDetail(debtId: string) {
 
   return {
     debt,
-    payments: debtPayments,
-    documents: documents ?? [],
-    installments: installmentRows,
+    payments: paymentsWithUrls,
+    documents: documentsWithUrls,
+    installments: installmentsWithUrls,
     totalPaid,
     balance,
     schedule,

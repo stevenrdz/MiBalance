@@ -7,11 +7,37 @@ import { Input } from "@/components/ui/input";
 import { ALLOWED_ATTACHMENT_MIME_TYPES, MAX_ATTACHMENT_SIZE_BYTES } from "@/lib/constants";
 import { createClient } from "@/lib/supabase/browser";
 
-export function DebtDocumentForm({ debtId }: { debtId: string }) {
+function getDebtDocumentCopy(type: "LOAN" | "CASH_ADVANCE" | "DEFERRED") {
+  if (type === "CASH_ADVANCE") {
+    return {
+      title: "Documento del avance",
+      description: "Sube contrato, tabla o estado de cuenta para asociarlo al avance en efectivo."
+    };
+  }
+  if (type === "DEFERRED") {
+    return {
+      title: "Documento del diferido",
+      description: "Sube comprobantes o estados de cuenta para asociarlos al diferido."
+    };
+  }
+  return {
+    title: "Documento del prestamo",
+    description: "Sube contrato, tabla de amortizacion o estado de cuenta para asociarlo a la deuda."
+  };
+}
+
+export function DebtDocumentForm({
+  debtId,
+  debtType
+}: {
+  debtId: string;
+  debtType: "LOAN" | "CASH_ADVANCE" | "DEFERRED";
+}) {
   const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const copy = getDebtDocumentCopy(debtType);
 
   const onUpload = async () => {
     if (!file) {
@@ -78,10 +104,8 @@ export function DebtDocumentForm({ debtId }: { debtId: string }) {
   return (
     <div className="space-y-3 rounded-xl border border-ink-100 bg-white p-4">
       <div>
-        <h3 className="text-sm font-semibold text-ink-800">Documento del prestamo</h3>
-        <p className="text-xs text-ink-500">
-          Sube contrato, tabla de amortizacion o estado de cuenta para asociarlo a la deuda.
-        </p>
+        <h3 className="text-sm font-semibold text-ink-800">{copy.title}</h3>
+        <p className="text-xs text-ink-500">{copy.description}</p>
       </div>
       <Input
         accept={ALLOWED_ATTACHMENT_MIME_TYPES.join(",")}
