@@ -28,7 +28,7 @@ export async function PATCH(request: Request, { params }: Params) {
       const receipt = formData.get("receipt");
       if (receipt instanceof File) {
         if (receipt.size > MAX_ATTACHMENT_SIZE_BYTES) {
-          return apiValidationError("El comprobante excede el tamano maximo de 5MB.");
+          return apiValidationError("El comprobante excede el tamaño máximo de 5MB.");
         }
 
         const path = `${user.id}/debt-installments/${id}/${crypto.randomUUID()}-${receipt.name}`;
@@ -36,7 +36,7 @@ export async function PATCH(request: Request, { params }: Params) {
           cacheControl: "3600",
           upsert: false
         });
-        if (uploadError) return apiValidationError(uploadError.message);
+        if (uploadError) return apiValidationError("No se pudo subir el comprobante.");
 
         payload.receipt_file_name = receipt.name;
         payload.receipt_file_path = path;
@@ -49,7 +49,7 @@ export async function PATCH(request: Request, { params }: Params) {
 
     const parsed = settleDebtInstallmentSchema.safeParse(payload);
     if (!parsed.success) {
-      return apiValidationError("Datos invalidos para confirmar letra.", parsed.error.flatten());
+      return apiValidationError("Datos inválidos para confirmar la letra.", parsed.error.flatten());
     }
 
     const { data: installment, error: installmentError } = await supabase
@@ -78,7 +78,7 @@ export async function PATCH(request: Request, { params }: Params) {
       })
       .eq("id", installmentId)
       .eq("user_id", user.id);
-    if (error) return apiValidationError(error.message);
+    if (error) return apiValidationError("No se pudo actualizar la letra.");
 
     if (values.paid_amount > 0 && values.paid_at) {
       const { error: paymentError } = await supabase.from("debt_payments").insert({
@@ -94,7 +94,7 @@ export async function PATCH(request: Request, { params }: Params) {
         receipt_mime_type: values.receipt_mime_type || null,
         receipt_size_bytes: values.receipt_size_bytes || null
       });
-      if (paymentError) return apiValidationError(paymentError.message);
+      if (paymentError) return apiValidationError("No se pudo registrar el pago de la letra.");
     }
 
     return NextResponse.json({ ok: true });

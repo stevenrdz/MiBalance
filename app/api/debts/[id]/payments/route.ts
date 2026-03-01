@@ -28,7 +28,7 @@ export async function POST(request: Request, { params }: Params) {
       const receipt = formData.get("receipt");
       if (receipt instanceof File) {
         if (receipt.size > MAX_ATTACHMENT_SIZE_BYTES) {
-          return apiValidationError("El comprobante excede el tamano maximo de 5MB.");
+          return apiValidationError("El comprobante excede el tamaño máximo de 5MB.");
         }
 
         const path = `${user.id}/debt-payments/${id}/${crypto.randomUUID()}-${receipt.name}`;
@@ -36,7 +36,7 @@ export async function POST(request: Request, { params }: Params) {
           cacheControl: "3600",
           upsert: false
         });
-        if (uploadError) return apiValidationError(uploadError.message);
+        if (uploadError) return apiValidationError("No se pudo subir el comprobante.");
 
         payload.receipt_file_name = receipt.name;
         payload.receipt_file_path = path;
@@ -49,7 +49,7 @@ export async function POST(request: Request, { params }: Params) {
 
     const parsed = debtPaymentSchema.safeParse(payload);
     if (!parsed.success) {
-      return apiValidationError("Datos invalidos de pago de deuda.", parsed.error.flatten());
+      return apiValidationError("Datos inválidos de pago de deuda.", parsed.error.flatten());
     }
 
     const { data: debt, error: debtError } = await supabase
@@ -79,7 +79,7 @@ export async function POST(request: Request, { params }: Params) {
       .select("id")
       .single();
 
-    if (error) return apiValidationError(error.message);
+    if (error) return apiValidationError("No se pudo registrar el pago de la deuda.");
     return NextResponse.json(data, { status: 201 });
   } catch (error) {
     return apiServerError(error);

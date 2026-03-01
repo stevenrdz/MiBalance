@@ -1,23 +1,23 @@
 # MiBalance EC
 
-Aplicacion web de finanzas personales para Ecuador.
+Aplicación web de finanzas personales para Ecuador.
 
 - Moneda: `USD`
 - Zona horaria: `America/Guayaquil`
-- Idioma: Espanol
+- Idioma: Español
 - Stack: `Next.js App Router + TypeScript + Tailwind + Supabase`
 
 ## Funcionalidades
 
 - Auth con Supabase.
-- Dashboard con resumen, filtros y graficas.
+- Dashboard con resumen, filtros y gráficas.
 - Transacciones con adjuntos y OCR de comprobantes.
 - Tarjetas:
   - CRUD
-  - activacion y desactivacion
-  - eliminacion logica
-  - pago minimo actual
-  - fecha maxima de pago
+  - activación y desactivación
+  - eliminación lógica
+  - pago mínimo actual
+  - fecha máxima de pago
 - Deudas:
   - prestamos
   - avances en efectivo
@@ -26,7 +26,7 @@ Aplicacion web de finanzas personales para Ecuador.
   - documentos asociados
   - letras persistidas
   - onboarding guiado para prestamos desde documento
-  - activacion, desactivacion y eliminacion logica
+  - activación, desactivación y eliminación lógica
   - filtro por estado en listado
 - Toasts globales para mensajes de exito y error.
 
@@ -34,12 +34,12 @@ Aplicacion web de finanzas personales para Ecuador.
 
 Ruta: `/debts/new`
 
-Si el usuario selecciona `Prestamo`:
+Si el usuario selecciona `Préstamo`:
 
 1. Sube primero el documento.
 2. El sistema intenta analizarlo.
-3. Si el archivo no parece ser de prestamo, muestra toast de error.
-4. Si el archivo es valido, autorrellena campos base cuando detecta datos.
+3. Si el archivo no parece ser de préstamo, muestra toast de error.
+4. Si el archivo es válido, autorrellena campos base cuando detecta datos.
 5. Muestra las letras detectadas o generadas.
 6. El usuario puede marcar cuales ya fueron pagadas.
 7. Las letras vencidas se determinan por fecha.
@@ -47,8 +47,8 @@ Si el usuario selecciona `Prestamo`:
 
 Notas:
 
-- El parser actual es heuristico. Funciona mejor con tablas de amortizacion legibles.
-- Para PDFs escaneados complejos todavia puede requerir ajuste manual.
+- El parser actual es heurístico. Funciona mejor con tablas de amortización legibles.
+- Para PDFs escaneados complejos todavía puede requerir ajuste manual.
 
 ## Estructura principal
 
@@ -101,7 +101,7 @@ Aplicar migraciones locales:
 docker-compose run --rm supabase-cli sh -lc "npx supabase@latest db push --local"
 ```
 
-Build de validacion:
+Build de validación:
 
 ```bash
 docker-compose exec app npm run build
@@ -115,7 +115,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\restart-app.ps1
 
 Notas del entorno Docker:
 
-- `.next` ahora usa un volumen dedicado del contenedor para reducir corrupcion del cache en Windows.
+- `.next` ahora usa un volumen dedicado del contenedor para reducir corrupción del cache en Windows.
 - `app` evita reinstalar dependencias en cada arranque si `node_modules` ya existe.
 
 ## Base de datos
@@ -148,15 +148,17 @@ Validado recientemente:
 
 - migraciones locales aplicadas
 - `docker-compose exec app npm run build` OK
-- flujo de tarjetas con activacion/desactivacion y nuevos campos
-- onboarding de prestamos con documento, letras y estados
+- flujo de tarjetas con activación/desactivación y nuevos campos
+- onboarding de préstamos con documento, letras y estados
 - deudas con activar/desactivar separado de eliminar
 - filtro de deudas por estado
-- correccion de `Fecha pagada` en onboarding de letras
+- corrección de `Fecha pagada` en onboarding de letras
+- preview y descarga de documentos y comprobantes
+- OCR de comprobantes para autocompletar transacciones
+- tooling E2E con Playwright
 
 ## Pendientes
 
-- OCR mas robusto para tablas de amortizacion escaneadas.
-- Preview y descarga de documentos/comprobantes.
+- OCR más robusto para tablas de amortización escaneadas.
 - Extender el onboarding a avances y diferidos.
-- Agenda unificada de pagos, minimos y vencimientos.
+- Agenda unificada de pagos, mínimos y vencimientos.

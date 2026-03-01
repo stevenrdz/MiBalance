@@ -37,7 +37,7 @@ export async function POST(request: Request, { params }: Params) {
     if (payload?.mode === "generate") {
       const parsed = generateDebtInstallmentsSchema.safeParse(payload);
       if (!parsed.success) {
-        return apiValidationError("Datos invalidos para generar letras.", parsed.error.flatten());
+        return apiValidationError("Datos inválidos para generar letras.", parsed.error.flatten());
       }
       if (!debt.term_months || !debt.installment_amount) {
         return apiValidationError("La deuda debe tener plazo y cuota mensual para generar letras.");
@@ -55,13 +55,13 @@ export async function POST(request: Request, { params }: Params) {
       const { error } = await supabase.from("debt_installments").upsert(rows, {
         onConflict: "debt_id,installment_number"
       });
-      if (error) return apiValidationError(error.message);
+      if (error) return apiValidationError("No se pudieron generar las letras.");
       return NextResponse.json({ ok: true, count: rows.length }, { status: 201 });
     }
 
     const parsed = debtInstallmentSchema.safeParse(payload);
     if (!parsed.success) {
-      return apiValidationError("Datos invalidos de letra.", parsed.error.flatten());
+      return apiValidationError("Datos inválidos de letra.", parsed.error.flatten());
     }
 
     const { data, error } = await supabase
@@ -77,7 +77,7 @@ export async function POST(request: Request, { params }: Params) {
       })
       .select("id")
       .single();
-    if (error) return apiValidationError(error.message);
+    if (error) return apiValidationError("No se pudo registrar la letra.");
     return NextResponse.json(data, { status: 201 });
   } catch (error) {
     return apiServerError(error);

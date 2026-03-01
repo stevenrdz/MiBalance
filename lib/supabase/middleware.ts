@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import type { CookieOptions } from "@supabase/ssr";
 import type { User } from "@supabase/supabase-js";
 import { type NextRequest, NextResponse } from "next/server";
-import { getSupabaseServerConfig } from "@/lib/env";
+import { getSupabaseServerConfig, SUPABASE_AUTH_COOKIE_NAME } from "@/lib/env";
 
 type SessionResult = {
   user: User | null;
@@ -17,6 +17,9 @@ export async function updateSession(request: NextRequest): Promise<SessionResult
   const { url, anonKey } = getSupabaseServerConfig();
 
   const supabase = createServerClient(url, anonKey, {
+    cookieOptions: {
+      name: SUPABASE_AUTH_COOKIE_NAME
+    },
     cookies: {
       getAll() {
         return request.cookies.getAll();

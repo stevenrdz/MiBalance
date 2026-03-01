@@ -38,10 +38,9 @@ export async function POST(request: Request, { params }: Params) {
       .select("id")
       .single();
 
-    if (error) return apiValidationError(error.message);
+    if (error) return apiValidationError("No se pudo registrar el pago de la tarjeta.");
     return NextResponse.json(data, { status: 201 });
   } catch (error) {
     return apiServerError(error);
   }
 }
-

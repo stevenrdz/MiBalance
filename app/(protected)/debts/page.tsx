@@ -9,7 +9,7 @@ type DebtsPageProps = {
 };
 
 function getDebtTypeLabel(type: string) {
-  if (type === "LOAN") return "Prestamo";
+  if (type === "LOAN") return "Préstamo";
   if (type === "DEFERRED") return "Diferido";
   return "Avance en efectivo";
 }
@@ -32,7 +32,7 @@ export default async function DebtsPage({ searchParams }: DebtsPageProps) {
         <div>
           <h1 className="text-2xl font-bold text-ink-900">Deudas</h1>
           <p className="text-sm text-ink-600">
-            Controla prestamos, avances en efectivo y diferidos por cuota.
+            Controla préstamos, avances en efectivo y diferidos por cuota.
           </p>
         </div>
         <Link
@@ -71,7 +71,7 @@ export default async function DebtsPage({ searchParams }: DebtsPageProps) {
         <EmptyState
           message={
             status === "all"
-              ? "Aun no tienes deudas registradas."
+              ? "Aún no tienes deudas registradas."
               : status === "active"
                 ? "No tienes deudas activas."
                 : "No tienes deudas inactivas."

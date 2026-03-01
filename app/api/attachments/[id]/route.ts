@@ -25,7 +25,7 @@ export async function DELETE(_: Request, { params }: Params) {
     const { error: storageError } = await supabase.storage
       .from("attachments")
       .remove([attachment.file_path]);
-    if (storageError) return apiValidationError(storageError.message);
+    if (storageError) return apiValidationError("No se pudo eliminar el archivo adjunto.");
 
     const { error } = await supabase
       .from("attachments")
@@ -34,7 +34,7 @@ export async function DELETE(_: Request, { params }: Params) {
       .eq("user_id", user.id)
       .is("deleted_at", null);
 
-    if (error) return apiValidationError(error.message);
+    if (error) return apiValidationError("No se pudo eliminar el adjunto.");
     return NextResponse.json({ ok: true });
   } catch (error) {
     return apiServerError(error);

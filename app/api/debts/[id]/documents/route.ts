@@ -30,10 +30,10 @@ export async function POST(request: Request, { params }: Params) {
       const formData = await request.formData();
       const fileEntry = formData.get("file");
       if (!(fileEntry instanceof File)) {
-        return apiValidationError("Debes enviar un archivo valido.");
+        return apiValidationError("Debes enviar un archivo válido.");
       }
       if (fileEntry.size > MAX_ATTACHMENT_SIZE_BYTES) {
-        return apiValidationError("El documento excede el tamano maximo de 5MB.");
+        return apiValidationError("El documento excede el tamaño máximo de 5MB.");
       }
 
       const path = `${user.id}/debt-documents/${id}/${crypto.randomUUID()}-${fileEntry.name}`;
@@ -43,7 +43,7 @@ export async function POST(request: Request, { params }: Params) {
           cacheControl: "3600",
           upsert: false
         });
-      if (uploadError) return apiValidationError(uploadError.message);
+      if (uploadError) return apiValidationError("No se pudo subir el documento.");
 
       parsed = {
         file_name: fileEntry.name,
@@ -55,7 +55,7 @@ export async function POST(request: Request, { params }: Params) {
       const payload = await request.json();
       const schemaResult = debtDocumentSchema.safeParse(payload);
       if (!schemaResult.success) {
-        return apiValidationError("Documento de prestamo invalido.", schemaResult.error.flatten());
+        return apiValidationError("Documento de préstamo inválido.", schemaResult.error.flatten());
       }
       parsed = schemaResult.data;
     }
@@ -73,7 +73,7 @@ export async function POST(request: Request, { params }: Params) {
       .select("id")
       .single();
 
-    if (error) return apiValidationError(error.message);
+    if (error) return apiValidationError("No se pudo guardar el documento.");
     return NextResponse.json(data, { status: 201 });
   } catch (error) {
     return apiServerError(error);

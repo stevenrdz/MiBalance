@@ -3,6 +3,7 @@ import { DebtDocumentForm } from "@/components/forms/debt-document-form";
 import { DebtForm } from "@/components/forms/debt-form";
 import { DebtInstallmentGeneratorForm } from "@/components/forms/debt-installment-generator-form";
 import { DebtInstallmentSettlementForm } from "@/components/forms/debt-installment-settlement-form";
+import { DebtPaymentForm } from "@/components/forms/debt-payment-form";
 import { DeactivateDebtButton } from "@/components/forms/deactivate-debt-button";
 import { DeleteDebtButton } from "@/components/forms/delete-debt-button";
 import { Card } from "@/components/ui/card";
@@ -99,7 +100,7 @@ function hasPersistedId(item: unknown): item is {
 }
 
 function getDebtTypeLabel(type: string) {
-  if (type === "LOAN") return "Prestamo";
+  if (type === "LOAN") return "Préstamo";
   if (type === "DEFERRED") return "Diferido";
   return "Avance en efectivo";
 }
@@ -109,8 +110,8 @@ function getStatusLabel(status: string) {
   if (status === "PENDING") return "Pendiente";
   if (status === "PARTIAL") return "Pago parcial";
   if (status === "PAID") return "Pagada";
-  if (status === "HISTORICAL") return "Historica";
-  return "Proxima";
+  if (status === "HISTORICAL") return "Histórica";
+  return "Próxima";
 }
 
 export default async function DebtDetailPage({ params }: DebtDetailPageProps) {
@@ -118,9 +119,23 @@ export default async function DebtDetailPage({ params }: DebtDetailPageProps) {
   const detail = await getDebtDetail(id).catch(() => null);
   if (!detail) notFound();
 
-  const actionableInstallments = detail.schedule
-    .filter(hasPersistedId)
-    .filter((item) => item.status !== "PAID");
+  const persistedScheduleInstallments = detail.schedule.filter(hasPersistedId);
+  const actionableInstallments = persistedScheduleInstallments.filter((item) => item.status !== "PAID");
+  const paymentEligibleInstallments = detail.schedule
+    .filter((item) => item.status !== "PAID")
+    .map((item) => ({
+      number: item.number,
+      label: item.label,
+      dueDate: item.dueDate,
+      remainingAmount: Number(
+        "remainingAmount" in item && item.remainingAmount != null
+          ? item.remainingAmount
+          : (item.scheduledAmount ?? 0) - item.paidAmount
+      ),
+      status: getStatusLabel(item.status)
+    }));
+  const canRegisterManualPayments =
+    detail.debt.is_active && persistedScheduleInstallments.length === 0 && paymentEligibleInstallments.length > 0;
 
   return (
     <section className="space-y-5">
@@ -216,6 +231,10 @@ export default async function DebtDetailPage({ params }: DebtDetailPageProps) {
         />
       ) : null}
 
+      {canRegisterManualPayments ? (
+        <DebtPaymentForm debtId={detail.debt.id} installments={paymentEligibleInstallments} />
+      ) : null}
+
       <DataTable<ScheduleRow>
         columns={[
           {
@@ -289,7 +308,7 @@ export default async function DebtDetailPage({ params }: DebtDetailPageProps) {
             )
           }
         ]}
-        emptyMessage="Aun no hay documentos cargados para esta deuda."
+        emptyMessage="Aún no hay documentos cargados para esta deuda."
         keyExtractor={(row) => row.id}
         rows={detail.documents as DocumentRow[]}
       />
@@ -308,7 +327,7 @@ export default async function DebtDetailPage({ params }: DebtDetailPageProps) {
           },
           {
             key: "payment_method",
-            header: "Metodo",
+            header: "Método",
             render: (row) => row.payment_method ?? "-"
           },
           {

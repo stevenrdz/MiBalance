@@ -110,7 +110,7 @@ export function DebtPaymentForm({ debtId, installments }: DebtPaymentFormProps) 
               !ALLOWED_ATTACHMENT_MIME_TYPES.includes(file.type as (typeof ALLOWED_ATTACHMENT_MIME_TYPES)[number]) ||
               file.size > MAX_ATTACHMENT_SIZE_BYTES
             ) {
-              setServerError("El comprobante debe ser jpg, png o pdf de maximo 5MB.");
+              setServerError("El comprobante debe ser jpg, png o pdf de máximo 5MB.");
               return;
             }
             setReceipt(file);

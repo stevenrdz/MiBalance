@@ -25,10 +25,9 @@ export async function POST(request: Request) {
       .select("id")
       .single();
 
-    if (error) return apiValidationError(error.message);
+    if (error) return apiValidationError("No se pudo crear la categoría.");
     return NextResponse.json(data, { status: 201 });
   } catch (error) {
     return apiServerError(error);
   }
 }
-

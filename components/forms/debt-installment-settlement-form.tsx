@@ -119,7 +119,7 @@ export function DebtInstallmentSettlementForm({
             !ALLOWED_ATTACHMENT_MIME_TYPES.includes(selected.type as (typeof ALLOWED_ATTACHMENT_MIME_TYPES)[number]) ||
             selected.size > MAX_ATTACHMENT_SIZE_BYTES
           ) {
-            setError("El comprobante debe ser jpg, png o pdf de maximo 5MB.");
+            setError("El comprobante debe ser jpg, png o pdf de máximo 5MB.");
             return;
           }
           setReceipt(selected);

@@ -22,10 +22,9 @@ export async function PATCH(request: Request) {
       })
       .eq("id", user.id);
 
-    if (error) return apiValidationError(error.message);
+    if (error) return apiValidationError("No se pudo actualizar el perfil.");
     return NextResponse.json({ ok: true });
   } catch (error) {
     return apiServerError(error);
   }
 }
-

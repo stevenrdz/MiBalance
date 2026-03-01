@@ -52,7 +52,7 @@ function mergeDocuments(documents: AnalyzedDocument[]) {
     return {
       ...(first ?? {
         isRelevant: false,
-        reason: "No se encontraron documentos validos para analizar.",
+        reason: "No se encontraron documentos válidos para analizar.",
         installments: []
       }),
       documents
@@ -183,7 +183,7 @@ export async function POST(request: Request) {
         return apiValidationError("Formato no soportado. Usa PDF, JPG o PNG.");
       }
       if (fileEntry.size > MAX_ATTACHMENT_SIZE_BYTES) {
-        return apiValidationError("El documento excede el tamano maximo de 5MB.");
+        return apiValidationError("El documento excede el tamaño máximo de 5MB.");
       }
     }
 

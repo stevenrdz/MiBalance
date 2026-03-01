@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -12,7 +12,6 @@ import { createClient } from "@/lib/supabase/browser";
 
 export function LoginForm() {
   const [serverError, setServerError] = useState<string | null>(null);
-  const router = useRouter();
   const searchParams = useSearchParams();
   const nextPath = searchParams.get("next") ?? "/dashboard";
 
@@ -37,8 +36,7 @@ export function LoginForm() {
       return;
     }
 
-    router.push(nextPath);
-    router.refresh();
+    window.location.assign(nextPath);
   });
 
   return (
@@ -80,4 +78,3 @@ export function LoginForm() {
     </form>
   );
 }
-

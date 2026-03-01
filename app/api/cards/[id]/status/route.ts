@@ -9,7 +9,7 @@ export async function PATCH(request: Request, { params }: Params) {
     const { id } = await params;
     const payload = (await request.json()) as { is_active?: boolean };
     if (typeof payload.is_active !== "boolean") {
-      return apiValidationError("Estado de tarjeta invalido.");
+      return apiValidationError("Estado de tarjeta inválido.");
     }
 
     const { supabase, user } = await getAuthenticatedClient();
@@ -22,7 +22,7 @@ export async function PATCH(request: Request, { params }: Params) {
       .eq("user_id", user.id)
       .is("deleted_at", null);
 
-    if (error) return apiValidationError(error.message);
+    if (error) return apiValidationError("No se pudo actualizar el estado de la tarjeta.");
     return NextResponse.json({ ok: true });
   } catch (error) {
     return apiServerError(error);

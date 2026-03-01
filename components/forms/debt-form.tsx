@@ -63,7 +63,7 @@ export function DebtForm({ mode, debtId, initialData }: DebtFormProps) {
         <div>
           <label className="mb-1 block text-sm font-medium text-ink-700">Tipo</label>
           <Select {...form.register("type")}>
-            <option value="LOAN">Prestamo</option>
+            <option value="LOAN">Préstamo</option>
             <option value="CASH_ADVANCE">Avance en efectivo</option>
             <option value="DEFERRED">Diferido</option>
           </Select>
@@ -94,7 +94,7 @@ export function DebtForm({ mode, debtId, initialData }: DebtFormProps) {
           <Input min="1" step="1" type="number" {...form.register("term_months")} />
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium text-ink-700">Interes %</label>
+          <label className="mb-1 block text-sm font-medium text-ink-700">Interés %</label>
           <Input min="0" step="0.01" type="number" {...form.register("interest_rate")} />
         </div>
       </div>
@@ -110,7 +110,7 @@ export function DebtForm({ mode, debtId, initialData }: DebtFormProps) {
           )}
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium text-ink-700">Dia de pago</label>
+          <label className="mb-1 block text-sm font-medium text-ink-700">Día de pago</label>
           <Input min="1" max="31" step="1" type="number" {...form.register("payment_day")} />
           {form.formState.errors.payment_day && (
             <p className="mt-1 text-xs text-red-600">{form.formState.errors.payment_day.message}</p>

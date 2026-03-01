@@ -28,7 +28,7 @@ export async function PATCH(request: Request, { params }: Params) {
       .eq("user_id", user.id)
       .is("deleted_at", null);
 
-    if (error) return apiValidationError(error.message);
+    if (error) return apiValidationError("No se pudo actualizar la categoría.");
     return NextResponse.json({ ok: true });
   } catch (error) {
     return apiServerError(error);
@@ -51,10 +51,9 @@ export async function DELETE(_: Request, { params }: Params) {
       .eq("user_id", user.id)
       .is("deleted_at", null);
 
-    if (error) return apiValidationError(error.message);
+    if (error) return apiValidationError("No se pudo eliminar la categoría.");
     return NextResponse.json({ ok: true });
   } catch (error) {
     return apiServerError(error);
   }
 }
-

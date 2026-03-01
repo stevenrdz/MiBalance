@@ -10,6 +10,8 @@ type SupabaseConfig = {
   anonKey: string;
 };
 
+export const SUPABASE_AUTH_COOKIE_NAME = "sb-mibalance-auth-token";
+
 function getAnonKey() {
   return required(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY, "NEXT_PUBLIC_SUPABASE_ANON_KEY");
 }

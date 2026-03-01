@@ -20,8 +20,8 @@ function getDebtDocumentCopy(type: "LOAN" | "CASH_ADVANCE" | "DEFERRED") {
     };
   }
   return {
-    title: "Documento del prestamo",
-    description: "Sube contrato, tabla de amortizacion o estado de cuenta para asociarlo a la deuda."
+    title: "Documento del préstamo",
+    description: "Sube contrato, tabla de amortización o estado de cuenta para asociarlo a la deuda."
   };
 }
 
@@ -40,7 +40,7 @@ export function DebtDocumentForm({
 
   const onUpload = async () => {
     if (!file) {
-      setError("Selecciona un PDF o imagen del prestamo.");
+      setError("Selecciona un PDF o imagen del préstamo.");
       return;
     }
 
@@ -68,7 +68,7 @@ export function DebtDocumentForm({
       if (!generationResponse.ok) {
         throw new Error(
           generationJson.error ??
-            "El documento se subio, pero no se pudieron generar las letras automaticamente."
+            "El documento se subió, pero no se pudieron generar las letras automáticamente."
         );
       }
 
@@ -99,7 +99,7 @@ export function DebtDocumentForm({
             !ALLOWED_ATTACHMENT_MIME_TYPES.includes(selected.type as (typeof ALLOWED_ATTACHMENT_MIME_TYPES)[number]) ||
             selected.size > MAX_ATTACHMENT_SIZE_BYTES
           ) {
-            setError("El documento debe ser jpg, png o pdf de maximo 5MB.");
+            setError("El documento debe ser jpg, png o pdf de máximo 5MB.");
             return;
           }
           setFile(selected);

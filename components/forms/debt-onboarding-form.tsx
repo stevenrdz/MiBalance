@@ -32,10 +32,10 @@ const TYPE_COPY: Record<
   }
 > = {
   LOAN: {
-    title: "Prestamo",
-    documentLabel: "Documentos del prestamo",
+    title: "Préstamo",
+    documentLabel: "Documentos del préstamo",
     documentDescription:
-      "Puedes subir contrato y tabla de amortizacion juntos. La app combina ambos y completa el formulario antes de guardar.",
+      "Puedes subir contrato y tabla de amortización juntos. La app combina ambos y completa el formulario antes de guardar.",
     scheduleTitle: "Letras detectadas"
   },
   CASH_ADVANCE: {
@@ -49,7 +49,7 @@ const TYPE_COPY: Record<
     title: "Diferido",
     documentLabel: "Documentos del diferido",
     documentDescription:
-      "Sube comprobantes o estados del diferido para detectar cuotas, fechas y montos automaticamente.",
+      "Sube comprobantes o estados del diferido para detectar cuotas, fechas y montos automáticamente.",
     scheduleTitle: "Cuotas detectadas"
   }
 };
