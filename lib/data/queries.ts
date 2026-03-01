@@ -350,9 +350,9 @@ export async function getCardDetail(cardId: string) {
   };
 }
 
-export async function getDebtsWithStats() {
+export async function getDebtsWithStats(status: "all" | "active" | "inactive" = "all") {
   const { supabase, user } = await getCurrentUser();
-  const { data: debts, error } = await supabase
+  let query = supabase
     .from("debts")
     .select(
       "id, type, creditor, principal, start_date, term_months, installment_amount, payment_day, current_installment, interest_rate, notes, is_active"
@@ -360,6 +360,11 @@ export async function getDebtsWithStats() {
     .eq("user_id", user.id)
     .is("deleted_at", null)
     .order("start_date", { ascending: false });
+
+  if (status === "active") query = query.eq("is_active", true);
+  if (status === "inactive") query = query.eq("is_active", false);
+
+  const { data: debts, error } = await query;
   if (error) throw new Error(error.message);
 
   const ids = (debts ?? []).map((d) => d.id);

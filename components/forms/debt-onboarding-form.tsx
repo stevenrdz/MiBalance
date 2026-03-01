@@ -6,7 +6,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { buildDebtSchedule } from "@/lib/debt-schedule";
 import { ALLOWED_ATTACHMENT_MIME_TYPES, MAX_ATTACHMENT_SIZE_BYTES } from "@/lib/constants";
-import { createClient } from "@/lib/supabase/browser";
 import { debtSchema, type DebtInput } from "@/lib/schemas/domain";
 import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
@@ -83,6 +82,7 @@ export function DebtOnboardingForm() {
 
   const selectedType = form.watch("type");
   const selectedCopy = TYPE_COPY[selectedType];
+  const today = new Date().toISOString().slice(0, 10);
 
   const previewRows = useMemo(() => {
     if (installments.length) return installments;
@@ -103,7 +103,7 @@ export function DebtOnboardingForm() {
       due_date: item.dueDate,
       scheduled_amount: Number(item.scheduledAmount ?? 0),
       paid: false,
-      paid_at: new Date().toISOString().slice(0, 10)
+      paid_at: ""
     }));
   }, [form, installments]);
 
@@ -169,7 +169,7 @@ export function DebtOnboardingForm() {
             }) => ({
               ...item,
               paid: false,
-              paid_at: new Date().toISOString().slice(0, 10)
+              paid_at: ""
             })
           )
         );
@@ -187,33 +187,14 @@ export function DebtOnboardingForm() {
   const uploadDocuments = async (debtId: string) => {
     if (documentFiles.length === 0) return new Map<string, string>();
 
-    const supabase = createClient();
-    const {
-      data: { user }
-    } = await supabase.auth.getUser();
-    if (!user) throw new Error("Sesion no encontrada.");
-
     const uploaded = new Map<string, string>();
 
     for (const documentFile of documentFiles) {
-      const path = `${user.id}/debt-documents/${debtId}/${crypto.randomUUID()}-${documentFile.name}`;
-      const { error: uploadError } = await supabase.storage.from("attachments").upload(path, documentFile, {
-        cacheControl: "3600",
-        upsert: false
-      });
-      if (uploadError) throw new Error(uploadError.message);
-
+      const payload = new FormData();
+      payload.set("file", documentFile);
       const response = await fetch(`/api/debts/${debtId}/documents`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          file_name: documentFile.name,
-          file_path: path,
-          mime_type: documentFile.type,
-          size_bytes: documentFile.size
-        })
+        body: payload
       });
       const json = await response.json();
       if (!response.ok) throw new Error(json.error ?? "No se pudo guardar el documento.");
@@ -511,7 +492,11 @@ export function DebtOnboardingForm() {
                         checked={item.paid}
                         className="size-4"
                         onChange={(event) =>
-                          updatePreviewRow(index, (row) => ({ ...row, paid: event.target.checked }))
+                          updatePreviewRow(index, (row) => ({
+                            ...row,
+                            paid: event.target.checked,
+                            paid_at: event.target.checked ? row.paid_at || today : ""
+                          }))
                         }
                         type="checkbox"
                       />
@@ -520,13 +505,15 @@ export function DebtOnboardingForm() {
                   </div>
                   <div>
                     <label className="mb-1 block text-xs font-semibold uppercase text-ink-500">
-                      Fecha pago
+                      Fecha pagada
                     </label>
                     <Input
                       disabled={!item.paid}
+                      max={today}
                       onChange={(event) =>
                         updatePreviewRow(index, (row) => ({ ...row, paid_at: event.target.value }))
-                      }
+                        }
+                      placeholder={item.paid ? undefined : "Pendiente"}
                       type="date"
                       value={item.paid_at}
                     />

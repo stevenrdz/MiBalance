@@ -1,3 +1,4 @@
+import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 import { debtSchema } from "@/lib/schemas/domain";
 import { apiServerError, apiUnauthorized, apiValidationError } from "@/lib/api";
@@ -37,6 +38,10 @@ export async function PATCH(request: Request, { params }: Params) {
       .is("deleted_at", null);
 
     if (error) return apiValidationError(error.message);
+
+    revalidatePath("/debts");
+    revalidatePath(`/debts/${id}`);
+
     return NextResponse.json({ ok: true });
   } catch (error) {
     return apiServerError(error);
@@ -57,6 +62,10 @@ export async function DELETE(_: Request, { params }: Params) {
       .is("deleted_at", null);
 
     if (error) return apiValidationError(error.message);
+
+    revalidatePath("/debts");
+    revalidatePath(`/debts/${id}`);
+
     return NextResponse.json({ ok: true });
   } catch (error) {
     return apiServerError(error);

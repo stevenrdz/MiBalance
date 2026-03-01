@@ -4,32 +4,38 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: mibalance-app
-    command: sh -c "npm install && npm run dev"
+    command: sh -c "if [ ! -d node_modules/next ]; then npm install; fi && npm run dev"
     environment:
       NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+      SUPABASE_INTERNAL_URL: ${SUPABASE_INTERNAL_URL:-http://host.docker.internal:54321}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
       SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_OCR_MODEL: ${OPENAI_OCR_MODEL:-gpt-4.1-mini}
       TZ: America/Guayaquil
       CHOKIDAR_USEPOLLING: "true"
       WATCHPACK_POLLING: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
     ports:
       - "3000:3000"
     volumes:
       - .:/app
       - app_node_modules:/app/node_modules
+      - app_next_cache:/app/.next
     depends_on:
       - supabase-cli
 
   supabase-cli:
-    image: supabase/cli:latest
+    image: node:22-alpine
     container_name: mibalance-supabase-cli
     working_dir: /workspace
-    entrypoint: ["sleep", "infinity"]
+    command: sh -lc "sleep infinity"
+    network_mode: "host"
     volumes:
       - .:/workspace
       - /var/run/docker.sock:/var/run/docker.sock
 
 volumes:
   app_node_modules:
-
+  app_next_cache:

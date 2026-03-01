@@ -45,6 +45,8 @@ Contexto fijo:
   - documentos asociados
   - letras persistidas (`debt_installments`)
   - onboarding de prestamo desde documento
+  - activacion/desactivacion separada de eliminacion logica
+  - filtro por estado (`todas`, `activas`, `inactivas`)
 - Toasts:
   - proveedor global en `components/ui/toast.tsx`
   - usar para exito, error y avisos operativos
@@ -62,6 +64,10 @@ Contexto fijo:
 - Valores monetarios siempre en USD.
 - Fecha visible al usuario en formato `dd/MM/yyyy`.
 - Cuando una deuda tenga letras reales, priorizar `debt_installments` sobre calculos temporales.
+- En onboarding de deudas:
+  - `Vence` es fecha programada de la letra
+  - `Fecha pagada` solo debe existir si la letra esta marcada como pagada
+  - no precargar fecha de pago en cuotas pendientes
 
 ## 5. Politica de raiz del repo
 
@@ -95,6 +101,8 @@ Ejecutar dentro del entorno del proyecto:
    - deudas
    - onboarding de prestamo
    - carga de documentos y letras
+   - estados de deuda (activar, desactivar, eliminar)
+   - filtro de deudas por estado
 
 ## 8. Pendientes conocidos
 
@@ -102,3 +110,4 @@ Ejecutar dentro del entorno del proyecto:
 - Permitir preview/descarga de documentos y comprobantes.
 - Extender onboarding guiado a avances en efectivo y diferidos.
 - Consolidar agenda global de pagos y vencimientos.
+- Seguir endureciendo el entorno `next dev` en Docker/Windows si reaparecen errores de `.next`.

@@ -4,6 +4,7 @@ import { DebtForm } from "@/components/forms/debt-form";
 import { DebtInstallmentGeneratorForm } from "@/components/forms/debt-installment-generator-form";
 import { DebtInstallmentSettlementForm } from "@/components/forms/debt-installment-settlement-form";
 import { DeactivateDebtButton } from "@/components/forms/deactivate-debt-button";
+import { DeleteDebtButton } from "@/components/forms/delete-debt-button";
 import { Card } from "@/components/ui/card";
 import { DataTable } from "@/components/ui/data-table";
 import { getDebtDetail } from "@/lib/data/queries";
@@ -126,9 +127,14 @@ export default async function DebtDetailPage({ params }: DebtDetailPageProps) {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h1 className="text-2xl font-bold text-ink-900">{detail.debt.creditor}</h1>
-          <p className="text-sm text-ink-600">{getDebtTypeLabel(detail.debt.type)}</p>
+          <p className="text-sm text-ink-600">
+            {getDebtTypeLabel(detail.debt.type)} · {detail.debt.is_active ? "Activa" : "Inactiva"}
+          </p>
         </div>
-        <DeactivateDebtButton debtId={detail.debt.id} />
+        <div className="flex flex-wrap gap-2">
+          <DeactivateDebtButton debtId={detail.debt.id} isActive={detail.debt.is_active} />
+          <DeleteDebtButton debtId={detail.debt.id} />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
@@ -172,12 +178,20 @@ export default async function DebtDetailPage({ params }: DebtDetailPageProps) {
         />
       </Card>
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <DebtDocumentForm debtId={detail.debt.id} debtType={detail.debt.type} />
-        <DebtInstallmentGeneratorForm debtId={detail.debt.id} />
-      </div>
+      {detail.debt.is_active ? (
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          <DebtDocumentForm debtId={detail.debt.id} debtType={detail.debt.type} />
+          <DebtInstallmentGeneratorForm debtId={detail.debt.id} />
+        </div>
+      ) : (
+        <Card>
+          <p className="text-sm text-ink-600">
+            Esta deuda está inactiva. Reactívala si necesitas registrar nuevos documentos o letras.
+          </p>
+        </Card>
+      )}
 
-      {actionableInstallments.length ? (
+      {detail.debt.is_active && actionableInstallments.length ? (
         <DebtInstallmentSettlementForm
           debtId={detail.debt.id}
           installments={actionableInstallments.map((item) => {

@@ -26,6 +26,8 @@ Aplicacion web de finanzas personales para Ecuador.
   - documentos asociados
   - letras persistidas
   - onboarding guiado para prestamos desde documento
+  - activacion, desactivacion y eliminacion logica
+  - filtro por estado en listado
 - Toasts globales para mensajes de exito y error.
 
 ## Flujo nuevo de prestamos
@@ -41,6 +43,7 @@ Si el usuario selecciona `Prestamo`:
 5. Muestra las letras detectadas o generadas.
 6. El usuario puede marcar cuales ya fueron pagadas.
 7. Las letras vencidas se determinan por fecha.
+8. `Fecha pagada` solo se llena si la letra se marca como pagada.
 
 Notas:
 
@@ -104,6 +107,17 @@ Build de validacion:
 docker-compose exec app npm run build
 ```
 
+Si `next dev` se corrompe y deja de abrir rutas como `/debts/new`, reinicia solo la app:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\restart-app.ps1
+```
+
+Notas del entorno Docker:
+
+- `.next` ahora usa un volumen dedicado del contenedor para reducir corrupcion del cache en Windows.
+- `app` evita reinstalar dependencias en cada arranque si `node_modules` ya existe.
+
 ## Base de datos
 
 Entidades principales:
@@ -136,6 +150,9 @@ Validado recientemente:
 - `docker-compose exec app npm run build` OK
 - flujo de tarjetas con activacion/desactivacion y nuevos campos
 - onboarding de prestamos con documento, letras y estados
+- deudas con activar/desactivar separado de eliminar
+- filtro de deudas por estado
+- correccion de `Fecha pagada` en onboarding de letras
 
 ## Pendientes
 
