@@ -3,7 +3,7 @@ import { MAX_ATTACHMENT_SIZE_BYTES } from "@/lib/constants";
 import { apiServerError, apiUnauthorized, apiValidationError } from "@/lib/api";
 import { parseLoanDocument, type LoanDocumentAutofill } from "@/lib/ocr/loan-parser";
 import { extractPdfText } from "@/lib/ocr/pdf-text";
-import { extractRawTextFromImage } from "@/lib/ocr/server";
+import { extractRawTextFromImage, extractRawTextFromPdfFirstPage } from "@/lib/ocr/server";
 import { getAuthenticatedClient } from "@/lib/supabase/guard";
 
 export const runtime = "nodejs";
@@ -131,6 +131,28 @@ async function extractText(fileEntry: File) {
   return extractRawTextFromImage(fileEntry);
 }
 
+async function analyzeFile(fileEntry: File, expectedType?: "LOAN" | "CASH_ADVANCE" | "DEFERRED") {
+  const text = await extractText(fileEntry);
+  let result = parseLoanDocument(text, fileEntry.name, expectedType);
+
+  // If embedded PDF text is incomplete, rasterize the first page and run OCR as a fallback.
+  if (fileEntry.type === "application/pdf" && (!result.isRelevant || !result.creditor)) {
+    try {
+      const ocrText = await extractRawTextFromPdfFirstPage(fileEntry);
+      if (ocrText.trim()) {
+        result = parseLoanDocument(`${text}\n${ocrText}`, fileEntry.name, expectedType);
+      }
+    } catch {
+      // Keep the text-only result if PDF rasterization is not available for this file.
+    }
+  }
+
+  return {
+    ...result,
+    file_name: fileEntry.name
+  } satisfies AnalyzedDocument;
+}
+
 export async function POST(request: Request) {
   try {
     const { user } = await getAuthenticatedClient();
@@ -167,12 +189,7 @@ export async function POST(request: Request) {
 
     const documents: AnalyzedDocument[] = [];
     for (const fileEntry of files) {
-      const text = await extractText(fileEntry);
-      const result = parseLoanDocument(text, fileEntry.name, expectedType);
-      documents.push({
-        ...result,
-        file_name: fileEntry.name
-      });
+      documents.push(await analyzeFile(fileEntry, expectedType));
     }
 
     return NextResponse.json(mergeDocuments(documents));

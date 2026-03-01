@@ -23,29 +23,6 @@ type DraftInstallment = {
 
 type DebtType = DebtInput["type"];
 
-type AnalysisFieldSource = {
-  file_name: string;
-  document_category?: string;
-} | null;
-
-type AnalysisDocument = {
-  file_name: string;
-  isRelevant: boolean;
-  reason?: string;
-  document_category?: string;
-  creditor?: string;
-  principal?: number;
-  term_months?: number;
-  installment_amount?: number;
-  interest_rate?: number;
-  start_date?: string;
-  installments: Array<{
-    installment_number: number;
-    due_date: string;
-    scheduled_amount: number;
-  }>;
-};
-
 const TYPE_COPY: Record<
   DebtType,
   {
@@ -59,7 +36,7 @@ const TYPE_COPY: Record<
     title: "Prestamo",
     documentLabel: "Documentos del prestamo",
     documentDescription:
-      "Puedes subir contrato y tabla de amortizacion juntos. La app fusiona ambos y prioriza la tabla para letras y el contrato para datos generales si hace falta.",
+      "Puedes subir contrato y tabla de amortizacion juntos. La app combina ambos y completa el formulario antes de guardar.",
     scheduleTitle: "Letras detectadas"
   },
   CASH_ADVANCE: {
@@ -73,22 +50,10 @@ const TYPE_COPY: Record<
     title: "Diferido",
     documentLabel: "Documentos del diferido",
     documentDescription:
-      "Sube comprobantes o estados del diferido. Si hay varias fuentes, la app te muestra de cual documento salio cada dato.",
+      "Sube comprobantes o estados del diferido para detectar cuotas, fechas y montos automaticamente.",
     scheduleTitle: "Cuotas detectadas"
   }
 };
-
-function getCategoryLabel(category?: string) {
-  if (category === "AMORTIZATION_TABLE") return "Tabla de amortizacion";
-  if (category === "CONTRACT") return "Contrato";
-  if (category === "STATEMENT") return "Estado de cuenta";
-  return "Documento";
-}
-
-function renderSource(source: AnalysisFieldSource) {
-  if (!source) return "Manual";
-  return `${source.file_name} · ${getCategoryLabel(source.document_category)}`;
-}
 
 export function DebtOnboardingForm() {
   const router = useRouter();
@@ -98,8 +63,6 @@ export function DebtOnboardingForm() {
   const [documentChecked, setDocumentChecked] = useState(false);
   const [installments, setInstallments] = useState<DraftInstallment[]>([]);
   const [analyzing, setAnalyzing] = useState(false);
-  const [analysisDocuments, setAnalysisDocuments] = useState<AnalysisDocument[]>([]);
-  const [fieldSources, setFieldSources] = useState<Record<string, AnalysisFieldSource>>({});
   const [installmentsSourceFileName, setInstallmentsSourceFileName] = useState<string | null>(null);
 
   const form = useForm<DebtInput>({
@@ -151,6 +114,12 @@ export function DebtOnboardingForm() {
     });
   };
 
+  const resetAnalysisState = () => {
+    setDocumentChecked(false);
+    setInstallments([]);
+    setInstallmentsSourceFileName(null);
+  };
+
   const analyzeDocument = async () => {
     if (documentFiles.length === 0) {
       toast.error(`Selecciona al menos un PDF o imagen de ${selectedCopy.title.toLowerCase()}.`);
@@ -172,16 +141,12 @@ export function DebtOnboardingForm() {
         throw new Error(json.error ?? "No se pudo analizar el documento.");
       }
       if (!json.isRelevant) {
-        setDocumentChecked(false);
-        setInstallments([]);
-        setAnalysisDocuments(json.documents ?? []);
+        resetAnalysisState();
         toast.error(json.reason ?? `Los documentos no parecen corresponder a ${selectedCopy.title.toLowerCase()}.`);
         return;
       }
 
       setDocumentChecked(true);
-      setAnalysisDocuments(json.documents ?? []);
-      setFieldSources(json.field_sources ?? {});
       setInstallmentsSourceFileName(json.installments_source_file_name ?? null);
 
       if (json.creditor) form.setValue("creditor", json.creditor, { shouldDirty: true });
@@ -211,7 +176,7 @@ export function DebtOnboardingForm() {
         form.setValue("term_months", json.installments.length, { shouldDirty: true });
       }
 
-      toast.success("Documentos analizados. Revisa la comparacion y ajusta antes de guardar.");
+      toast.success("Documentos analizados. Revisa y ajusta los datos antes de guardar.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "No se pudo analizar el documento.");
     } finally {
@@ -336,41 +301,6 @@ export function DebtOnboardingForm() {
     }
   });
 
-  const fieldSummary = [
-    {
-      label: "Acreedor",
-      value: form.watch("creditor") || "Sin dato",
-      source: renderSource(fieldSources.creditor ?? null)
-    },
-    {
-      label: "Principal",
-      value: form.watch("principal") ? Number(form.watch("principal")).toFixed(2) : "Sin dato",
-      source: renderSource(fieldSources.principal ?? null)
-    },
-    {
-      label: "Plazo",
-      value: form.watch("term_months") ? `${form.watch("term_months")} meses` : "Sin dato",
-      source: renderSource(fieldSources.term_months ?? null)
-    },
-    {
-      label: "Cuota",
-      value: form.watch("installment_amount")
-        ? Number(form.watch("installment_amount")).toFixed(2)
-        : "Sin dato",
-      source: renderSource(fieldSources.installment_amount ?? null)
-    },
-    {
-      label: "Interes %",
-      value: form.watch("interest_rate") != null ? String(form.watch("interest_rate")) : "Sin dato",
-      source: renderSource(fieldSources.interest_rate ?? null)
-    },
-    {
-      label: "Fecha inicio",
-      value: form.watch("start_date") || "Sin dato",
-      source: renderSource(fieldSources.start_date ?? null)
-    }
-  ];
-
   return (
     <form className="space-y-6" onSubmit={onSubmit}>
       <div className="rounded-2xl border border-ink-100 bg-white p-5 shadow-soft">
@@ -383,11 +313,7 @@ export function DebtOnboardingForm() {
                 const nextType = event.target.value as DebtType;
                 form.setValue("type", nextType, { shouldDirty: true });
                 setDocumentFiles([]);
-                setDocumentChecked(false);
-                setInstallments([]);
-                setAnalysisDocuments([]);
-                setFieldSources({});
-                setInstallmentsSourceFileName(null);
+                resetAnalysisState();
               }}
             >
               <option value="LOAN">Prestamo</option>
@@ -420,10 +346,7 @@ export function DebtOnboardingForm() {
               const selected = Array.from(event.target.files ?? []);
               if (selected.length === 0) {
                 setDocumentFiles([]);
-                setDocumentChecked(false);
-                setAnalysisDocuments([]);
-                setFieldSources({});
-                setInstallmentsSourceFileName(null);
+                resetAnalysisState();
                 return;
               }
               const invalid = selected.find(
@@ -437,10 +360,7 @@ export function DebtOnboardingForm() {
                 return;
               }
               setDocumentFiles(selected);
-              setDocumentChecked(false);
-              setAnalysisDocuments([]);
-              setFieldSources({});
-              setInstallmentsSourceFileName(null);
+              resetAnalysisState();
             }}
             type="file"
           />
@@ -474,103 +394,6 @@ export function DebtOnboardingForm() {
           </p>
         )}
       </div>
-
-      {analysisDocuments.length > 0 ? (
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-          <div className="rounded-2xl border border-ink-100 bg-white p-5 shadow-soft">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-semibold text-ink-900">Comparativa de documentos</h2>
-                <p className="text-sm text-ink-600">
-                  Aqui ves lo que extrajo cada archivo antes de fusionar los datos.
-                </p>
-              </div>
-            </div>
-            <div className="space-y-3">
-              {analysisDocuments.map((document) => (
-                <div className="rounded-xl border border-ink-100 bg-ink-50 p-4" key={document.file_name}>
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <h3 className="text-sm font-semibold text-ink-900">{document.file_name}</h3>
-                      <p className="text-xs text-ink-500">
-                        {getCategoryLabel(document.document_category)}
-                        {document.isRelevant ? " · valido" : " · no valido"}
-                      </p>
-                    </div>
-                    <span
-                      className={`rounded-full px-2 py-1 text-xs font-semibold ${
-                        document.isRelevant
-                          ? "bg-emerald-100 text-emerald-700"
-                          : "bg-red-100 text-red-700"
-                      }`}
-                    >
-                      {document.isRelevant ? "Detectado" : "Descartado"}
-                    </span>
-                  </div>
-                  {document.reason ? <p className="mt-2 text-xs text-red-600">{document.reason}</p> : null}
-                  <div className="mt-3 grid grid-cols-2 gap-3 text-sm md:grid-cols-3">
-                    <div>
-                      <p className="text-xs uppercase text-ink-500">Acreedor</p>
-                      <p className="font-medium text-ink-800">{document.creditor ?? "-"}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs uppercase text-ink-500">Principal</p>
-                      <p className="font-medium text-ink-800">
-                        {document.principal != null ? document.principal.toFixed(2) : "-"}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs uppercase text-ink-500">Plazo</p>
-                      <p className="font-medium text-ink-800">{document.term_months ?? "-"}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs uppercase text-ink-500">Cuota</p>
-                      <p className="font-medium text-ink-800">
-                        {document.installment_amount != null
-                          ? document.installment_amount.toFixed(2)
-                          : "-"}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs uppercase text-ink-500">Interes %</p>
-                      <p className="font-medium text-ink-800">
-                        {document.interest_rate != null ? document.interest_rate : "-"}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs uppercase text-ink-500">Inicio</p>
-                      <p className="font-medium text-ink-800">{document.start_date ?? "-"}</p>
-                    </div>
-                  </div>
-                  <p className="mt-3 text-xs text-ink-500">
-                    Letras detectadas: {document.installments.length}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-ink-100 bg-white p-5 shadow-soft">
-            <h2 className="text-lg font-semibold text-ink-900">Origen del autofill</h2>
-            <p className="mt-1 text-sm text-ink-600">
-              Esta fusion prioriza la tabla para letras y el mejor documento disponible para cada campo.
-            </p>
-            <div className="mt-4 space-y-3">
-              {fieldSummary.map((field) => (
-                <div className="rounded-xl border border-ink-100 bg-ink-50 p-3" key={field.label}>
-                  <p className="text-xs uppercase text-ink-500">{field.label}</p>
-                  <p className="mt-1 font-semibold text-ink-900">{field.value}</p>
-                  <p className="mt-1 text-xs text-ink-500">{field.source}</p>
-                </div>
-              ))}
-            </div>
-            <div className="mt-4 rounded-xl border border-emerald-100 bg-emerald-50 p-3 text-sm text-emerald-800">
-              La fusion es segura: no guarda nada automaticamente en base de datos. Solo propone valores en el
-              formulario y puedes corregirlos antes de crear la deuda.
-            </div>
-          </div>
-        </div>
-      ) : null}
 
       <div className="rounded-2xl border border-ink-100 bg-white p-5 shadow-soft">
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">

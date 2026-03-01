@@ -1,5 +1,9 @@
 import OpenAI from "openai";
+import { execFile } from "node:child_process";
 import { access } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { promisify } from "node:util";
+import os from "node:os";
 import path from "node:path";
 import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
@@ -48,6 +52,7 @@ function hasUsefulData(autofill: ReceiptAutofill) {
 }
 
 let cachedWorkerPath: string | null = null;
+const execFileAsync = promisify(execFile);
 
 async function resolveTesseractWorkerPath() {
   if (cachedWorkerPath) return cachedWorkerPath;
@@ -153,6 +158,28 @@ export async function extractRawTextFromImage(file: File): Promise<string> {
     return text ?? "";
   } finally {
     await worker.terminate();
+  }
+}
+
+export async function extractRawTextFromPdfFirstPage(file: File): Promise<string> {
+  const workingDir = await mkdtemp(path.join(os.tmpdir(), "mibalance-pdf-ocr-"));
+  const sourcePath = path.join(workingDir, "source.pdf");
+  const outputPrefix = path.join(workingDir, "page");
+  const outputPath = `${outputPrefix}.png`;
+
+  try {
+    const pdfBuffer = Buffer.from(await file.arrayBuffer());
+    await writeFile(sourcePath, pdfBuffer);
+
+    await execFileAsync("pdftoppm", ["-png", "-f", "1", "-singlefile", sourcePath, outputPrefix], {
+      cwd: workingDir
+    });
+
+    const imageBuffer = await readFile(outputPath);
+    const imageFile = new File([imageBuffer], "page-1.png", { type: "image/png" });
+    return extractRawTextFromImage(imageFile);
+  } finally {
+    await rm(workingDir, { recursive: true, force: true });
   }
 }
 

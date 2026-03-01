@@ -28,6 +28,12 @@ const BANK_PATTERNS: Array<{ name: string; pattern: RegExp }> = [
   { name: "Diners Club", pattern: /\bDINERS\b/i }
 ];
 
+const FILE_BANK_PATTERNS: Array<{ name: string; pattern: RegExp }> = [
+  { name: "Banco Pichincha", pattern: /(?:^|[\s_-])(?:BP|PICHINCHA)(?:$|[\s_-])/i },
+  { name: "Banco Guayaquil", pattern: /(?:^|[\s_-])(?:BG|GUAYAQUIL)(?:$|[\s_-])/i },
+  { name: "Diners Club", pattern: /(?:^|[\s_-])DINERS(?:$|[\s_-])/i }
+];
+
 const TYPE_PATTERNS: Array<{ type: DebtDocumentType; pattern: RegExp }> = [
   { type: "CASH_ADVANCE", pattern: /\bAVANCE\s+EN\s+EFECTIVO\b|\bAVANCE\b/i },
   { type: "DEFERRED", pattern: /\bDIFERID[OA]S?\b|\bCORRIENTE\s+DIFERIDO\b/i },
@@ -76,6 +82,10 @@ function normalizeForSearch(raw: string) {
 
 function compactSpacedText(raw: string) {
   return raw.replace(/(?:\b[A-Z0-9]\b\s*){3,}/g, (match) => match.replace(/\s+/g, ""));
+}
+
+function normalizeFileNameForSearch(raw: string) {
+  return raw.replace(/[^a-zA-Z0-9]+/g, " ").trim();
 }
 
 function normalizeAmount(raw: string) {
@@ -322,6 +332,7 @@ function extractStartDate(source: string, installments: LoanInstallmentDraft[]) 
 export function parseLoanDocument(text: string, fileName: string, expectedType?: DebtDocumentType) {
   const source = `${fileName}\n${text}`;
   const normalizedSource = compactSpacedText(normalizeForSearch(source));
+  const normalizedFileName = normalizeFileNameForSearch(fileName);
   const installments = extractInstallments(text);
 
   const isRelevant =
@@ -349,9 +360,9 @@ export function parseLoanDocument(text: string, fileName: string, expectedType?:
     } satisfies LoanDocumentAutofill;
   }
 
-  const creditor = BANK_PATTERNS.find(
-    (item) => item.pattern.test(source) || item.pattern.test(normalizedSource)
-  )?.name;
+  const creditor =
+    BANK_PATTERNS.find((item) => item.pattern.test(source) || item.pattern.test(normalizedSource))?.name ??
+    FILE_BANK_PATTERNS.find((item) => item.pattern.test(normalizedFileName))?.name;
   const document_category = extractDocumentCategory(source, normalizedSource, installments);
   const principal = extractPrincipal(source, normalizedSource);
   const term_months = extractTermMonths(source, normalizedSource, installments);
