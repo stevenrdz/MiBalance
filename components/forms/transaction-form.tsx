@@ -9,6 +9,10 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { transactionSchema, type TransactionInput } from "@/lib/schemas/domain";
 import { ALLOWED_ATTACHMENT_MIME_TYPES, MAX_ATTACHMENT_SIZE_BYTES } from "@/lib/constants";
+import {
+  matchCategoryByHint,
+  type ReceiptAutofill
+} from "@/lib/ocr/receipt-parser";
 import { createClient } from "@/lib/supabase/browser";
 
 type CategoryOption = {
@@ -49,6 +53,9 @@ export function TransactionForm({
   const [serverError, setServerError] = useState<string | null>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [attachments, setAttachments] = useState(existingAttachments);
+  const [ocrLoading, setOcrLoading] = useState(false);
+  const [ocrPreview, setOcrPreview] = useState<ReceiptAutofill | null>(null);
+  const [ocrProvider, setOcrProvider] = useState<"openai" | "tesseract" | null>(null);
 
   const form = useForm<TransactionInput>({
     resolver: zodResolver(transactionSchema),
@@ -66,6 +73,7 @@ export function TransactionForm({
 
   const selectedType = form.watch("type");
   const selectedPaymentMethod = form.watch("payment_method");
+  const hasImageForOcr = files.some((file) => file.type.startsWith("image/"));
 
   const filteredCategories = useMemo(
     () => categories.filter((category) => category.type === selectedType),
@@ -142,6 +150,77 @@ export function TransactionForm({
     if (!response.ok) return;
     setAttachments((current) => current.filter((item) => item.id !== attachmentId));
     router.refresh();
+  };
+
+  const analyzeReceipt = async (imageFileOverride?: File) => {
+    setServerError(null);
+    const imageFile = imageFileOverride ?? files.find((file) => file.type.startsWith("image/"));
+    if (!imageFile) {
+      setServerError("Selecciona al menos una imagen (jpg/png) para analizar.");
+      return;
+    }
+
+    setOcrLoading(true);
+    try {
+      const payload = new FormData();
+      payload.set("file", imageFile);
+      payload.set("type", form.getValues("type"));
+      const response = await fetch("/api/ocr/receipt", {
+        method: "POST",
+        body: payload
+      });
+      const json = await response.json();
+      if (!response.ok) {
+        throw new Error(json.error ?? "No se pudo analizar la factura.");
+      }
+
+      const detected = (json.autofill ?? {}) as ReceiptAutofill;
+      setOcrProvider(json.provider === "openai" ? "openai" : "tesseract");
+      setOcrPreview(detected);
+
+      if (detected.amount) {
+        form.setValue("amount", Number(detected.amount.toFixed(2)), {
+          shouldValidate: true,
+          shouldDirty: true
+        });
+      }
+
+      if (detected.date) {
+        form.setValue("date", detected.date, { shouldValidate: true, shouldDirty: true });
+      }
+
+      if (detected.merchant) {
+        form.setValue("merchant", detected.merchant, { shouldDirty: true });
+      }
+
+      if (detected.description) {
+        form.setValue("description", detected.description, { shouldDirty: true });
+      }
+
+      if (detected.paymentMethod) {
+        form.setValue("payment_method", detected.paymentMethod, { shouldDirty: true });
+        if (detected.paymentMethod !== "card") {
+          form.setValue("card_id", null, { shouldDirty: true });
+        }
+      }
+
+      const categoryId = matchCategoryByHint(
+        detected.categoryNameHint,
+        categories,
+        form.getValues("type")
+      );
+      if (categoryId) {
+        form.setValue("category_id", categoryId, { shouldValidate: true, shouldDirty: true });
+      }
+    } catch (error) {
+      setServerError(
+        error instanceof Error
+          ? `No se pudo analizar la factura: ${error.message}`
+          : "No se pudo analizar la factura."
+      );
+    } finally {
+      setOcrLoading(false);
+    }
   };
 
   return (
@@ -245,9 +324,44 @@ export function TransactionForm({
               return;
             }
             setFiles(selected);
+            setOcrPreview(null);
+            setOcrProvider(null);
+            const firstImage = selected.find((file) => file.type.startsWith("image/"));
+            if (firstImage) {
+              void analyzeReceipt(firstImage);
+            }
           }}
           type="file"
         />
+        {hasImageForOcr && (
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <Button
+              isLoading={ocrLoading}
+              onClick={() => void analyzeReceipt()}
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
+              Reanalizar primera imagen
+            </Button>
+            <p className="text-xs text-ink-500">
+              OCR server-side: usa IA si OPENAI_API_KEY está configurada.
+            </p>
+          </div>
+        )}
+
+        {ocrPreview && (
+          <div className="mt-3 rounded-lg border border-ink-100 bg-ink-50 p-3 text-xs text-ink-700">
+            <p className="font-semibold text-ink-800">Sugerencias detectadas</p>
+            <p>Fecha: {ocrPreview.date ?? "-"}</p>
+            <p>Monto: {ocrPreview.amount ? ocrPreview.amount.toFixed(2) : "-"}</p>
+            <p>Comercio: {ocrPreview.merchant ?? "-"}</p>
+            <p>Método: {ocrPreview.paymentMethod ?? "-"}</p>
+            <p>Categoría sugerida: {ocrPreview.categoryNameHint ?? "-"}</p>
+            <p>Fuente: {ocrProvider === "openai" ? "IA (OpenAI)" : "OCR (Tesseract)"}</p>
+          </div>
+        )}
+
         {!!attachments.length && (
           <div className="mt-2 space-y-2 rounded-lg border border-ink-100 bg-ink-50 p-3">
             {attachments.map((item) => (
@@ -280,4 +394,3 @@ export function TransactionForm({
     </form>
   );
 }
-

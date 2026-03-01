@@ -1,0 +1,15 @@
+node_modules
+.next
+.git
+.gitignore
+playwright-report
+test-results
+coverage
+dist
+out
+*.log
+.env
+.env.local
+Facturas-20260222T055522Z-1-001
+free-nextjs-admin-dashboard-main
+vue-tailwind-admin-dashboard-main

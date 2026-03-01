@@ -4,6 +4,14 @@ out
 coverage
 dist
 *.tsbuildinfo
+playwright-report
+test-results
+e2e-dev.log
+host-dev.log
+supabase-start.log
+*.traineddata
+supabase/.branches
+supabase/.temp
 .env
 .env.local
 .env.development.local
@@ -18,3 +26,5 @@ pnpm-debug.log*
 
 vue-tailwind-admin-dashboard-main/
 free-nextjs-admin-dashboard-main/
+Facturas-20260222T055522Z-1-001/
+Prestamos/

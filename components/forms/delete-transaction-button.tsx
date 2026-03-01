@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 type DeleteTransactionButtonProps = {
@@ -22,9 +23,18 @@ export function DeleteTransactionButton({ transactionId }: DeleteTransactionButt
   };
 
   return (
-    <Button isLoading={loading} size="sm" type="button" variant="ghost" onClick={handleDelete}>
-      Eliminar
+    <Button
+      aria-label="Eliminar movimiento"
+      className="h-8 w-8 p-0"
+      isLoading={loading}
+      size="sm"
+      title="Eliminar"
+      type="button"
+      variant="ghost"
+      onClick={handleDelete}
+    >
+      <Trash2 className="h-4 w-4" />
+      <span className="sr-only">Eliminar</span>
     </Button>
   );
 }
-

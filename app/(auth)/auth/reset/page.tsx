@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { ResetForm } from "@/components/forms/reset-form";
 
 export default function ResetPage() {
@@ -8,9 +9,10 @@ export default function ResetPage() {
         Define una contraseña segura para tu cuenta.
       </p>
       <div className="mt-6">
-        <ResetForm />
+        <Suspense fallback={<p className="text-sm text-ink-600">Cargando...</p>}>
+          <ResetForm />
+        </Suspense>
       </div>
     </section>
   );
 }
-

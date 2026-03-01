@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Pencil } from "lucide-react";
 import { DeleteTransactionButton } from "@/components/forms/delete-transaction-button";
 import { TransactionsFilters } from "@/components/forms/transactions-filters";
 import { EmptyState } from "@/components/states/empty-state";
@@ -111,10 +112,13 @@ export default async function TransactionsPage({ searchParams }: TransactionsPag
               render: (row) => (
                 <div className="flex gap-2">
                   <Link
-                    className="inline-flex rounded-md bg-ink-100 px-2 py-1 text-xs font-semibold text-ink-700 hover:bg-ink-200"
+                    aria-label="Editar movimiento"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-ink-100 text-ink-700 hover:bg-ink-200"
                     href={`/transactions/${row.id}/edit`}
+                    title="Editar"
                   >
-                    Editar
+                    <Pencil className="h-4 w-4" />
+                    <span className="sr-only">Editar</span>
                   </Link>
                   <DeleteTransactionButton transactionId={row.id} />
                 </div>

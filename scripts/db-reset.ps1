@@ -1,2 +1,1 @@
-docker compose run --rm supabase-cli supabase db reset --local
-
+docker compose run --rm supabase-cli sh -lc "npx supabase@latest db reset --local"
