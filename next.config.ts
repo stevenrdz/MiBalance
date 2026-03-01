@@ -1,10 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  devIndicators: false,
   experimental: {
-    typedRoutes: true
+    devtoolSegmentExplorer: false
   }
 };
 
 export default nextConfig;
-
