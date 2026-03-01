@@ -1,5 +1,4 @@
-import { DebtForm } from "@/components/forms/debt-form";
-import { Card } from "@/components/ui/card";
+import { DebtOnboardingForm } from "@/components/forms/debt-onboarding-form";
 
 export default function NewDebtPage() {
   return (
@@ -7,13 +6,10 @@ export default function NewDebtPage() {
       <div>
         <h1 className="text-2xl font-bold text-ink-900">Nueva deuda</h1>
         <p className="text-sm text-ink-600">
-          Registra un préstamo o avance en efectivo y controla sus pagos.
+          Para prestamos, primero sube el documento, analízalo y luego confirma las letras.
         </p>
       </div>
-      <Card>
-        <DebtForm mode="create" />
-      </Card>
+      <DebtOnboardingForm />
     </section>
   );
 }
-

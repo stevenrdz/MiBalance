@@ -1,8 +1,8 @@
-# AGENT.md - Guía de contribución MiBalance EC
+# AGENT.md - Guia operativa MiBalance EC
 
-## 1. Objetivo del proyecto
+## 1. Objetivo
 
-Mantener y extender el MVP de `MiBalance EC` (PangoTech) usando:
+Mantener y extender `MiBalance EC` como app de finanzas personales para Ecuador con:
 
 - `Next.js App Router + TypeScript`
 - `Tailwind CSS`
@@ -10,93 +10,95 @@ Mantener y extender el MVP de `MiBalance EC` (PangoTech) usando:
 
 Contexto fijo:
 
-- País: Ecuador
+- Pais: Ecuador
 - Moneda: `USD`
-- Timezone: `America/Guayaquil`
-- Idioma de UI: Español
+- Zona horaria: `America/Guayaquil`
+- Idioma UI: Espanol
 
-## 2. Reglas técnicas obligatorias
+## 2. Reglas tecnicas
 
 - No usar Firebase.
 - No guardar tokens manualmente en `localStorage`.
-- Usar clientes Supabase SSR:
+- Mantener SSR auth con:
   - `lib/supabase/server.ts`
   - `lib/supabase/browser.ts`
-  - `middleware.ts` para proteger rutas.
+  - `middleware.ts`
 - Mantener RLS activo en todas las tablas.
-- No usar SQL concatenado en strings desde la app.
+- Validar entradas con Zod.
+- No construir SQL manual en strings desde la app.
+- Los adjuntos viven en Supabase Storage, bucket `attachments`.
 
-## 3. Convenciones de código
+## 3. Modulos activos
 
-- TypeScript estricto (`strict: true`).
-- Validar inputs con Zod (`lib/schemas`).
-- Formularios con React Hook Form.
-- Separar responsabilidades:
+- Auth: login, register, forgot, reset.
+- Dashboard: resumen, filtros y graficas.
+- Transacciones: CRUD, adjuntos y OCR de comprobantes.
+- Tarjetas:
+  - CRUD
+  - activacion/desactivacion
+  - eliminacion logica
+  - pago minimo actual
+  - fecha maxima de pago
+- Deudas:
+  - prestamos, avances y diferidos
+  - pagos
+  - documentos asociados
+  - letras persistidas (`debt_installments`)
+  - onboarding de prestamo desde documento
+- Toasts:
+  - proveedor global en `components/ui/toast.tsx`
+  - usar para exito, error y avisos operativos
+
+## 4. Convenciones de codigo
+
+- `strict: true`
+- Formularios con React Hook Form + Zod.
+- Separacion de responsabilidades:
   - UI: `components/*`
-  - Acceso a datos: `lib/data/*`
-  - Endpoints: `app/api/*`
-  - SQL: `supabase/*`
-- OCR de comprobantes:
-  - Endpoint server-side en `app/api/ocr/receipt/route.ts`
-  - Lógica de extracción en `lib/ocr/server.ts` con fallback a parser local.
-- Configuración Supabase en Docker local:
-  - Browser/client: `NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321`
-  - SSR/server container: `SUPABASE_INTERNAL_URL=http://host.docker.internal:54321`
-- Formato de fecha mostrado: `dd/mm/yyyy`.
+  - Datos/queries: `lib/data/*`
+  - OCR/parsers: `lib/ocr/*`
+  - API routes: `app/api/*`
+  - SQL/migraciones: `supabase/*`
 - Valores monetarios siempre en USD.
+- Fecha visible al usuario en formato `dd/MM/yyyy`.
+- Cuando una deuda tenga letras reales, priorizar `debt_installments` sobre calculos temporales.
 
-## 4. Convenciones de commits
+## 5. Politica de raiz del repo
 
-Formato recomendado (Conventional Commits):
+- No dejar artefactos generados en la raiz:
+  - `.next/`
+  - `test-results/`
+  - `playwright-report/`
+- No dejar plantillas externas o backups de dashboards en la raiz.
+- No versionar muestras pesadas o documentos personales en la raiz.
+- Si hace falta trabajar con PDFs o capturas locales, usar carpetas ignoradas por Git y documentar su uso en `README.md`.
 
-- `feat: ...`
-- `fix: ...`
-- `refactor: ...`
-- `docs: ...`
-- `chore: ...`
+## 6. Flujo para nuevas funcionalidades
 
-Ejemplos:
-
-- `feat: add debt payment flow`
-- `fix: enforce card_id on card transactions`
-- `docs: update local docker setup`
-
-## 5. Flujo de validación antes de merge
-
-Ejecutar:
-
-1. `npm run typecheck`
-2. `npm run lint`
-3. `npm run build`
-4. Validación manual básica:
-   - login/register/forgot/reset
-   - CRUD transacciones
-   - CRUD categorías
-   - CRUD tarjetas + pagos
-   - CRUD deudas + pagos
-   - Dashboard con filtros y gráficas
-
-## 6. Cómo agregar un nuevo módulo
-
-1. Definir alcance de negocio y entidad SQL.
-2. Actualizar:
-   - `supabase/schema.sql`
-   - migración en `supabase/migrations/`
-   - `supabase/seed.sql` (si aplica)
-3. Crear schema Zod en `lib/schemas`.
-4. Crear endpoints `app/api/...`.
-5. Crear queries en `lib/data/queries.ts` o módulo dedicado.
-6. Crear UI en `app/(protected)/...` y `components/...`.
-   - En tablas de listado, priorizar acciones con iconos y `aria-label` (editar/eliminar) para mantener densidad visual.
-7. Aplicar RLS/policies para la nueva tabla.
+1. Definir impacto de negocio.
+2. Ajustar esquema en `supabase/schema.sql`.
+3. Crear migracion en `supabase/migrations/`.
+4. Ajustar schemas Zod en `lib/schemas/domain.ts`.
+5. Implementar endpoints `app/api/...`.
+6. Conectar queries en `lib/data/queries.ts`.
+7. Implementar UX en `app/(protected)` y `components/forms`.
 8. Actualizar `README.md`.
 
-## 7. Pendientes / Future Work
+## 7. Validacion minima antes de cerrar cambios
 
-- Presupuestos mensuales por categoría.
-- Alertas de corte/pago de tarjetas.
-- Importación CSV bancos.
-- OCR avanzado de comprobantes (mejorar precisión y extraer ítems).
-- PWA offline.
-- Estabilizar pruebas E2E con Playwright (flujo de login en entorno containerizado).
-- Internacionalización multi-país (si se decide expandir fuera de Ecuador).
+Ejecutar dentro del entorno del proyecto:
+
+1. `npm run build`
+2. Validacion manual basica:
+   - auth
+   - tarjetas
+   - deudas
+   - onboarding de prestamo
+   - carga de documentos y letras
+
+## 8. Pendientes conocidos
+
+- Mejorar OCR/parsing de tablas de amortizacion PDF escaneadas.
+- Permitir preview/descarga de documentos y comprobantes.
+- Extender onboarding guiado a avances en efectivo y diferidos.
+- Consolidar agenda global de pagos y vencimientos.

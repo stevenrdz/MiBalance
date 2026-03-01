@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { debtPaymentSchema } from "@/lib/schemas/domain";
+import { debtDocumentSchema } from "@/lib/schemas/domain";
 import { apiServerError, apiUnauthorized, apiValidationError } from "@/lib/api";
 import { getAuthenticatedClient } from "@/lib/supabase/guard";
 
@@ -9,37 +9,32 @@ export async function POST(request: Request, { params }: Params) {
   try {
     const { id } = await params;
     const payload = await request.json();
-    const parsed = debtPaymentSchema.safeParse(payload);
+    const parsed = debtDocumentSchema.safeParse(payload);
     if (!parsed.success) {
-      return apiValidationError("Datos inválidos de pago de deuda.", parsed.error.flatten());
+      return apiValidationError("Documento de prestamo invalido.", parsed.error.flatten());
     }
 
     const { supabase, user } = await getAuthenticatedClient();
     if (!user) return apiUnauthorized();
 
-    const { data: debt, error: debtError } = await supabase
+    const { data: debt } = await supabase
       .from("debts")
       .select("id")
       .eq("id", id)
       .eq("user_id", user.id)
       .is("deleted_at", null)
       .single();
-    if (debtError || !debt) return apiValidationError("Deuda no encontrada.");
+    if (!debt) return apiValidationError("Deuda no encontrada.");
 
     const { data, error } = await supabase
-      .from("debt_payments")
+      .from("debt_documents")
       .insert({
         user_id: user.id,
         debt_id: id,
-        payment_date: parsed.data.payment_date,
-        installment_number: parsed.data.installment_number,
-        amount: parsed.data.amount,
-        payment_method: parsed.data.payment_method,
-        notes: parsed.data.notes || null,
-        receipt_file_name: parsed.data.receipt_file_name || null,
-        receipt_file_path: parsed.data.receipt_file_path || null,
-        receipt_mime_type: parsed.data.receipt_mime_type || null,
-        receipt_size_bytes: parsed.data.receipt_size_bytes || null
+        file_name: parsed.data.file_name,
+        file_path: parsed.data.file_path,
+        mime_type: parsed.data.mime_type,
+        size_bytes: parsed.data.size_bytes
       })
       .select("id")
       .single();

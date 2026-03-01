@@ -23,7 +23,9 @@ export async function PATCH(request: Request, { params }: Params) {
         name: parsed.data.name.trim(),
         credit_limit: parsed.data.credit_limit,
         statement_day: parsed.data.statement_day,
-        payment_day: parsed.data.payment_day
+        payment_day: parsed.data.payment_day,
+        minimum_payment_amount: parsed.data.minimum_payment_amount || null,
+        payment_due_date: parsed.data.payment_due_date || null
       })
       .eq("id", id)
       .eq("user_id", user.id)
@@ -44,7 +46,7 @@ export async function DELETE(_: Request, { params }: Params) {
 
     const { error } = await supabase
       .from("cards")
-      .update({ is_active: false, deleted_at: new Date().toISOString() })
+      .update({ deleted_at: new Date().toISOString(), is_active: false })
       .eq("id", id)
       .eq("user_id", user.id)
       .is("deleted_at", null);
@@ -55,4 +57,3 @@ export async function DELETE(_: Request, { params }: Params) {
     return apiServerError(error);
   }
 }
-

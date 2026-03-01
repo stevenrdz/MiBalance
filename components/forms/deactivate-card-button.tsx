@@ -4,23 +4,34 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 
-export function DeactivateCardButton({ cardId }: { cardId: string }) {
+export function DeactivateCardButton({
+  cardId,
+  isActive
+}: {
+  cardId: string;
+  isActive: boolean;
+}) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
-  const onDeactivate = async () => {
-    if (!confirm("¿Desactivar tarjeta?")) return;
+  const onToggle = async () => {
+    const nextState = !isActive;
+    if (!confirm(nextState ? "¿Reactivar tarjeta?" : "¿Desactivar tarjeta?")) return;
     setLoading(true);
-    await fetch(`/api/cards/${cardId}`, { method: "DELETE" });
+    await fetch(`/api/cards/${cardId}/status`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ is_active: nextState })
+    });
     setLoading(false);
-    router.push("/cards");
     router.refresh();
   };
 
   return (
-    <Button isLoading={loading} onClick={onDeactivate} size="sm" type="button" variant="danger">
-      Desactivar
+    <Button isLoading={loading} onClick={onToggle} size="sm" type="button" variant="secondary">
+      {isActive ? "Desactivar" : "Reactivar"}
     </Button>
   );
 }
-

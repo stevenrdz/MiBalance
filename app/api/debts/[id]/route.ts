@@ -26,6 +26,9 @@ export async function PATCH(request: Request, { params }: Params) {
         principal: values.principal,
         start_date: values.start_date,
         term_months: values.term_months || null,
+        installment_amount: values.installment_amount || null,
+        payment_day: values.payment_day || null,
+        current_installment: values.current_installment,
         interest_rate: values.interest_rate || null,
         notes: values.notes || null
       })
@@ -59,4 +62,3 @@ export async function DELETE(_: Request, { params }: Params) {
     return apiServerError(error);
   }
 }
-

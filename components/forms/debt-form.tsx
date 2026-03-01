@@ -27,6 +27,9 @@ export function DebtForm({ mode, debtId, initialData }: DebtFormProps) {
       principal: initialData?.principal ?? 0,
       start_date: initialData?.start_date ?? new Date().toISOString().slice(0, 10),
       term_months: initialData?.term_months ?? null,
+      installment_amount: initialData?.installment_amount ?? null,
+      payment_day: initialData?.payment_day ?? null,
+      current_installment: initialData?.current_installment ?? 1,
       interest_rate: initialData?.interest_rate ?? null,
       notes: initialData?.notes ?? ""
     }
@@ -60,13 +63,14 @@ export function DebtForm({ mode, debtId, initialData }: DebtFormProps) {
         <div>
           <label className="mb-1 block text-sm font-medium text-ink-700">Tipo</label>
           <Select {...form.register("type")}>
-            <option value="LOAN">Préstamo</option>
+            <option value="LOAN">Prestamo</option>
             <option value="CASH_ADVANCE">Avance en efectivo</option>
+            <option value="DEFERRED">Diferido</option>
           </Select>
         </div>
         <div>
           <label className="mb-1 block text-sm font-medium text-ink-700">Acreedor</label>
-          <Input placeholder="Ej: Cooperativa X" {...form.register("creditor")} />
+          <Input placeholder="Ej: Banco Guayaquil" {...form.register("creditor")} />
           {form.formState.errors.creditor && (
             <p className="mt-1 text-xs text-red-600">{form.formState.errors.creditor.message}</p>
           )}
@@ -90,8 +94,36 @@ export function DebtForm({ mode, debtId, initialData }: DebtFormProps) {
           <Input min="1" step="1" type="number" {...form.register("term_months")} />
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium text-ink-700">Interés %</label>
+          <label className="mb-1 block text-sm font-medium text-ink-700">Interes %</label>
           <Input min="0" step="0.01" type="number" {...form.register("interest_rate")} />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div>
+          <label className="mb-1 block text-sm font-medium text-ink-700">Cuota mensual</label>
+          <Input min="0.01" step="0.01" type="number" {...form.register("installment_amount")} />
+          {form.formState.errors.installment_amount && (
+            <p className="mt-1 text-xs text-red-600">
+              {form.formState.errors.installment_amount.message}
+            </p>
+          )}
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-ink-700">Dia de pago</label>
+          <Input min="1" max="31" step="1" type="number" {...form.register("payment_day")} />
+          {form.formState.errors.payment_day && (
+            <p className="mt-1 text-xs text-red-600">{form.formState.errors.payment_day.message}</p>
+          )}
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-ink-700">Mes actual de pago</label>
+          <Input min="1" step="1" type="number" {...form.register("current_installment")} />
+          {form.formState.errors.current_installment && (
+            <p className="mt-1 text-xs text-red-600">
+              {form.formState.errors.current_installment.message}
+            </p>
+          )}
         </div>
       </div>
 
@@ -113,4 +145,3 @@ export function DebtForm({ mode, debtId, initialData }: DebtFormProps) {
     </form>
   );
 }
-

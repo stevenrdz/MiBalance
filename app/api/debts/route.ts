@@ -24,6 +24,9 @@ export async function POST(request: Request) {
         principal: values.principal,
         start_date: values.start_date,
         term_months: values.term_months || null,
+        installment_amount: values.installment_amount || null,
+        payment_day: values.payment_day || null,
+        current_installment: values.current_installment,
         interest_rate: values.interest_rate || null,
         notes: values.notes || null
       })
@@ -36,4 +39,3 @@ export async function POST(request: Request) {
     return apiServerError(error);
   }
 }
-

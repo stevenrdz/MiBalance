@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { CardForm } from "@/components/forms/card-form";
 import { CardPaymentForm } from "@/components/forms/card-payment-form";
 import { DeactivateCardButton } from "@/components/forms/deactivate-card-button";
+import { DeleteCardButton } from "@/components/forms/delete-card-button";
 import { Card } from "@/components/ui/card";
 import { DataTable } from "@/components/ui/data-table";
 import { getCardDetail } from "@/lib/data/queries";
@@ -24,11 +25,17 @@ export default async function CardDetailPage({ params }: CardDetailPageProps) {
           <p className="text-sm text-ink-600">
             Ciclo actual: {detail.cycle.start} a {detail.cycle.end}
           </p>
+          <p className="text-sm text-ink-600">
+            Estado: {detail.card.is_active ? "Activa" : "Inactiva"}
+          </p>
         </div>
-        <DeactivateCardButton cardId={detail.card.id} />
+        <div className="flex gap-2">
+          <DeactivateCardButton cardId={detail.card.id} isActive={detail.card.is_active} />
+          <DeleteCardButton cardId={detail.card.id} />
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
         <Card>
           <p className="text-xs font-semibold uppercase text-ink-500">Consumos</p>
           <p className="mt-2 text-2xl font-bold text-ink-900">
@@ -47,6 +54,20 @@ export default async function CardDetailPage({ params }: CardDetailPageProps) {
             {formatCurrency(detail.summary.totalPending)}
           </p>
         </Card>
+        <Card>
+          <p className="text-xs font-semibold uppercase text-ink-500">Pago minimo</p>
+          <p className="mt-2 text-2xl font-bold text-ink-900">
+            {detail.card.minimum_payment_amount
+              ? formatCurrency(Number(detail.card.minimum_payment_amount))
+              : "-"}
+          </p>
+        </Card>
+        <Card>
+          <p className="text-xs font-semibold uppercase text-ink-500">Fecha maxima</p>
+          <p className="mt-2 text-2xl font-bold text-ink-900">
+            {detail.card.payment_due_date ? formatDateEc(detail.card.payment_due_date) : "-"}
+          </p>
+        </Card>
       </div>
 
       <Card>
@@ -57,13 +78,15 @@ export default async function CardDetailPage({ params }: CardDetailPageProps) {
             name: detail.card.name,
             credit_limit: Number(detail.card.credit_limit),
             statement_day: detail.card.statement_day,
-            payment_day: detail.card.payment_day
+            payment_day: detail.card.payment_day,
+            minimum_payment_amount: detail.card.minimum_payment_amount,
+            payment_due_date: detail.card.payment_due_date
           }}
           mode="edit"
         />
       </Card>
 
-      <CardPaymentForm cardId={detail.card.id} />
+      {detail.card.is_active ? <CardPaymentForm cardId={detail.card.id} /> : null}
 
       <DataTable
         columns={[
@@ -79,7 +102,7 @@ export default async function CardDetailPage({ params }: CardDetailPageProps) {
           },
           {
             key: "description",
-            header: "Descripción",
+            header: "Descripcion",
             render: (row) => row.description ?? "-"
           },
           {

@@ -24,7 +24,9 @@ export function CardForm({ mode, cardId, initialData }: CardFormProps) {
       name: initialData?.name ?? "",
       credit_limit: initialData?.credit_limit ?? 0,
       statement_day: initialData?.statement_day ?? 1,
-      payment_day: initialData?.payment_day ?? 1
+      payment_day: initialData?.payment_day ?? 1,
+      minimum_payment_amount: initialData?.minimum_payment_amount ?? null,
+      payment_due_date: initialData?.payment_due_date ?? null
     }
   });
 
@@ -63,25 +65,42 @@ export function CardForm({ mode, cardId, initialData }: CardFormProps) {
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <div>
-          <label className="mb-1 block text-sm font-medium text-ink-700">Cupo crédito (USD)</label>
+          <label className="mb-1 block text-sm font-medium text-ink-700">Cupo credito (USD)</label>
           <Input min="0.01" step="0.01" type="number" {...form.register("credit_limit")} />
           {form.formState.errors.credit_limit && (
             <p className="mt-1 text-xs text-red-600">{form.formState.errors.credit_limit.message}</p>
           )}
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium text-ink-700">Día de corte</label>
+          <label className="mb-1 block text-sm font-medium text-ink-700">Dia de corte</label>
           <Input max="31" min="1" step="1" type="number" {...form.register("statement_day")} />
           {form.formState.errors.statement_day && (
             <p className="mt-1 text-xs text-red-600">{form.formState.errors.statement_day.message}</p>
           )}
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium text-ink-700">Día de pago</label>
+          <label className="mb-1 block text-sm font-medium text-ink-700">Dia de pago</label>
           <Input max="31" min="1" step="1" type="number" {...form.register("payment_day")} />
           {form.formState.errors.payment_day && (
             <p className="mt-1 text-xs text-red-600">{form.formState.errors.payment_day.message}</p>
           )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div>
+          <label className="mb-1 block text-sm font-medium text-ink-700">Pago minimo actual</label>
+          <Input min="0.01" step="0.01" type="number" {...form.register("minimum_payment_amount")} />
+          <p className="mt-1 text-xs text-ink-500">
+            Monto minimo exigido en el estado de cuenta actual.
+          </p>
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-ink-700">Fecha maxima de pago</label>
+          <Input type="date" {...form.register("payment_due_date")} />
+          <p className="mt-1 text-xs text-ink-500">
+            Fecha limite del corte actual. El dia de pago es la referencia habitual de tu ciclo.
+          </p>
         </div>
       </div>
 
@@ -98,4 +117,3 @@ export function CardForm({ mode, cardId, initialData }: CardFormProps) {
     </form>
   );
 }
-

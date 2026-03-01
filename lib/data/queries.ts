@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
-import { currentMonthRange, getCardCycle, sanitizeRange } from "@/lib/date";
+import { buildDebtSchedule } from "@/lib/debt-schedule";
+import { currentMonthRange, getCardCycle, nowInEc, sanitizeRange } from "@/lib/date";
 import { PAGINATION_SIZE } from "@/lib/constants";
 import { createClient } from "@/lib/supabase/server";
 
@@ -10,6 +11,22 @@ export type DashboardFilters = {
   categoryId?: string;
   paymentMethod?: string;
 };
+
+function getEffectiveInstallmentStatus(item: {
+  status: string;
+  due_date: string;
+  paid_amount: number | string;
+  scheduled_amount: number | string;
+}) {
+  const today = nowInEc().toISOString().slice(0, 10);
+  const paidAmount = Number(item.paid_amount);
+  const scheduledAmount = Number(item.scheduled_amount);
+
+  if (item.status === "PAID" || paidAmount >= scheduledAmount) return "PAID";
+  if (item.status === "PARTIAL" || paidAmount > 0) return item.due_date < today ? "OVERDUE" : "PARTIAL";
+  if (item.due_date < today) return "OVERDUE";
+  return "PENDING";
+}
 
 async function getCurrentUser() {
   const supabase = await createClient();
@@ -42,7 +59,9 @@ export async function getCards(includeInactive = false) {
   const { supabase, user } = await getCurrentUser();
   let query = supabase
     .from("cards")
-    .select("id, name, credit_limit, statement_day, payment_day, currency, is_active")
+    .select(
+      "id, name, credit_limit, statement_day, payment_day, minimum_payment_amount, payment_due_date, currency, is_active"
+    )
     .eq("user_id", user.id)
     .is("deleted_at", null)
     .order("name", { ascending: true });
@@ -201,7 +220,7 @@ export async function getDashboardData(filters: DashboardFilters) {
     .filter((item) => item.type === "EXPENSE")
     .forEach((item) => {
       const category = Array.isArray(item.category) ? item.category[0] : item.category;
-      const name = category?.name ?? "Sin categoría";
+      const name = category?.name ?? "Sin categoria";
       const previous = expensesByCategoryMap.get(name) ?? 0;
       expensesByCategoryMap.set(name, previous + Number(item.amount));
     });
@@ -242,7 +261,9 @@ export async function getCardsWithStats() {
   const { supabase, user } = await getCurrentUser();
   const { data: cards, error } = await supabase
     .from("cards")
-    .select("id, name, credit_limit, statement_day, payment_day, currency, is_active")
+    .select(
+      "id, name, credit_limit, statement_day, payment_day, minimum_payment_amount, payment_due_date, currency, is_active"
+    )
     .eq("user_id", user.id)
     .is("deleted_at", null)
     .order("name", { ascending: true });
@@ -257,7 +278,9 @@ export async function getCardDetail(cardId: string) {
 
   const { data: card, error: cardError } = await supabase
     .from("cards")
-    .select("id, name, credit_limit, statement_day, payment_day, currency, is_active")
+    .select(
+      "id, name, credit_limit, statement_day, payment_day, minimum_payment_amount, payment_due_date, currency, is_active"
+    )
     .eq("user_id", user.id)
     .eq("id", cardId)
     .is("deleted_at", null)
@@ -306,7 +329,9 @@ export async function getDebtsWithStats() {
   const { supabase, user } = await getCurrentUser();
   const { data: debts, error } = await supabase
     .from("debts")
-    .select("id, type, creditor, principal, start_date, term_months, interest_rate, notes, is_active")
+    .select(
+      "id, type, creditor, principal, start_date, term_months, installment_amount, payment_day, current_installment, interest_rate, notes, is_active"
+    )
     .eq("user_id", user.id)
     .is("deleted_at", null)
     .order("start_date", { ascending: false });
@@ -315,23 +340,73 @@ export async function getDebtsWithStats() {
   const ids = (debts ?? []).map((d) => d.id);
   const { data: payments, error: paymentError } = await supabase
     .from("debt_payments")
-    .select("debt_id, amount")
+    .select("debt_id, amount, installment_number, payment_date")
     .eq("user_id", user.id)
     .in("debt_id", ids.length ? ids : ["00000000-0000-0000-0000-000000000000"]);
   if (paymentError) throw new Error(paymentError.message);
 
-  const map = new Map<string, number>();
-  (payments ?? []).forEach((payment) => {
-    const prev = map.get(payment.debt_id) ?? 0;
-    map.set(payment.debt_id, prev + Number(payment.amount));
+  const { data: installments, error: installmentsError } = await supabase
+    .from("debt_installments")
+    .select("id, debt_id, installment_number, due_date, scheduled_amount, status, paid_amount")
+    .eq("user_id", user.id)
+    .is("deleted_at", null)
+    .in("debt_id", ids.length ? ids : ["00000000-0000-0000-0000-000000000000"])
+    .order("installment_number", { ascending: true });
+  if (installmentsError) throw new Error(installmentsError.message);
+
+  const debtPayments = payments ?? [];
+  const paymentMap = new Map<string, typeof debtPayments>();
+  debtPayments.forEach((payment) => {
+    const current = paymentMap.get(payment.debt_id) ?? [];
+    current.push(payment);
+    paymentMap.set(payment.debt_id, current);
+  });
+
+  const installmentRows = installments ?? [];
+  const installmentMap = new Map<string, typeof installmentRows>();
+  installmentRows.forEach((installment) => {
+    const current = installmentMap.get(installment.debt_id) ?? [];
+    current.push(installment);
+    installmentMap.set(installment.debt_id, current);
   });
 
   return (debts ?? []).map((debt) => {
-    const paid = map.get(debt.id) ?? 0;
+    const debtPayments = paymentMap.get(debt.id) ?? [];
+    const paid = debtPayments.reduce((acc, payment) => acc + Number(payment.amount), 0);
+    const persistedInstallments = installmentMap.get(debt.id) ?? [];
+    const schedule =
+      persistedInstallments.length > 0
+        ? persistedInstallments.map((item) => ({
+            number: item.installment_number,
+            label: `Letra ${item.installment_number}`,
+            dueDate: item.due_date,
+            scheduledAmount: Number(item.scheduled_amount),
+            paidAmount: Number(item.paid_amount),
+            remainingAmount: Math.max(Number(item.scheduled_amount) - Number(item.paid_amount), 0),
+            status: getEffectiveInstallmentStatus(item),
+            isCurrentInstallment: item.installment_number === debt.current_installment
+          }))
+        : buildDebtSchedule({
+            startDate: debt.start_date,
+            termMonths: debt.term_months,
+            paymentDay: debt.payment_day,
+            installmentAmount: debt.installment_amount,
+            currentInstallment: debt.current_installment,
+            payments: debtPayments.map((payment) => ({
+              installment_number: payment.installment_number,
+              amount: Number(payment.amount),
+              payment_date: payment.payment_date
+            }))
+          });
+    const nextInstallment =
+      schedule.find((item) => item.status === "OVERDUE" || item.status === "PENDING" || item.status === "PARTIAL") ??
+      schedule.find((item) => item.status === "UPCOMING");
+
     return {
       ...debt,
       paid,
-      balance: Math.max(Number(debt.principal) - paid, 0)
+      balance: Math.max(Number(debt.principal) - paid, 0),
+      nextInstallment
     };
   });
 }
@@ -340,7 +415,9 @@ export async function getDebtDetail(debtId: string) {
   const { supabase, user } = await getCurrentUser();
   const { data: debt, error } = await supabase
     .from("debts")
-    .select("id, type, creditor, principal, start_date, term_months, interest_rate, notes, is_active")
+    .select(
+      "id, type, creditor, principal, start_date, term_months, installment_amount, payment_day, current_installment, interest_rate, notes, is_active"
+    )
     .eq("user_id", user.id)
     .eq("id", debtId)
     .is("deleted_at", null)
@@ -349,16 +426,78 @@ export async function getDebtDetail(debtId: string) {
 
   const { data: payments, error: paymentError } = await supabase
     .from("debt_payments")
-    .select("id, payment_date, amount, notes")
+    .select(
+      "id, payment_date, installment_number, amount, payment_method, notes, receipt_file_name, receipt_file_path"
+    )
     .eq("user_id", user.id)
     .eq("debt_id", debtId)
     .order("payment_date", { ascending: false });
   if (paymentError) throw new Error(paymentError.message);
 
-  const totalPaid = (payments ?? []).reduce((acc, payment) => acc + Number(payment.amount), 0);
-  const balance = Math.max(Number(debt.principal) - totalPaid, 0);
+  const { data: documents, error: documentsError } = await supabase
+    .from("debt_documents")
+    .select("id, file_name, file_path, mime_type, size_bytes, created_at")
+    .eq("user_id", user.id)
+    .eq("debt_id", debtId)
+    .is("deleted_at", null)
+    .order("created_at", { ascending: false });
+  if (documentsError) throw new Error(documentsError.message);
 
-  return { debt, payments: payments ?? [], totalPaid, balance };
+  const { data: installments, error: installmentsError } = await supabase
+    .from("debt_installments")
+    .select(
+      "id, document_id, installment_number, due_date, scheduled_amount, status, paid_amount, paid_at, payment_method, notes, receipt_file_name"
+    )
+    .eq("user_id", user.id)
+    .eq("debt_id", debtId)
+    .is("deleted_at", null)
+    .order("installment_number", { ascending: true });
+  if (installmentsError) throw new Error(installmentsError.message);
+
+  const debtPayments = payments ?? [];
+  const totalPaid = debtPayments.reduce((acc, payment) => acc + Number(payment.amount), 0);
+  const balance = Math.max(Number(debt.principal) - totalPaid, 0);
+  const installmentRows = installments ?? [];
+  const schedule =
+    installmentRows.length > 0
+      ? installmentRows.map((item) => ({
+          id: item.id,
+          number: item.installment_number,
+          label: `Letra ${item.installment_number}`,
+          dueDate: item.due_date,
+          scheduledAmount: Number(item.scheduled_amount),
+          paidAmount: Number(item.paid_amount),
+          remainingAmount: Math.max(Number(item.scheduled_amount) - Number(item.paid_amount), 0),
+          status: getEffectiveInstallmentStatus(item),
+          isCurrentInstallment: item.installment_number === debt.current_installment,
+          receiptFileName: item.receipt_file_name ?? null,
+          paymentMethod: item.payment_method ?? null
+        }))
+      : buildDebtSchedule({
+          startDate: debt.start_date,
+          termMonths: debt.term_months,
+          paymentDay: debt.payment_day,
+          installmentAmount: debt.installment_amount,
+          currentInstallment: debt.current_installment,
+          payments: debtPayments.map((payment) => ({
+            installment_number: payment.installment_number,
+            amount: Number(payment.amount),
+            payment_date: payment.payment_date
+          }))
+        });
+
+  return {
+    debt,
+    payments: debtPayments,
+    documents: documents ?? [],
+    installments: installmentRows,
+    totalPaid,
+    balance,
+    schedule,
+    currentInstallmentProgress: debt.term_months
+      ? `${debt.current_installment}/${debt.term_months}`
+      : `${debt.current_installment}`
+  };
 }
 
 export async function getProfile() {

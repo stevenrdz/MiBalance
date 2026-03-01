@@ -22,6 +22,8 @@ export async function POST(request: Request) {
         credit_limit: parsed.data.credit_limit,
         statement_day: parsed.data.statement_day,
         payment_day: parsed.data.payment_day,
+        minimum_payment_amount: parsed.data.minimum_payment_amount || null,
+        payment_due_date: parsed.data.payment_due_date || null,
         currency: "USD"
       })
       .select("id")
@@ -33,4 +35,3 @@ export async function POST(request: Request) {
     return apiServerError(error);
   }
 }
-
