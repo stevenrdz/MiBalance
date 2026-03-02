@@ -108,7 +108,7 @@ export function DebtDocumentForm({
       />
       {file ? <p className="text-xs text-ink-500">Archivo seleccionado: {file.name}</p> : null}
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
-      <Button isLoading={loading} onClick={onUpload} size="sm" type="button">
+      <Button className="w-full sm:w-auto" isLoading={loading} onClick={onUpload} size="sm" type="button">
         Subir documento
       </Button>
     </div>

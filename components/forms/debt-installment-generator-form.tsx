@@ -82,11 +82,11 @@ export function DebtInstallmentGeneratorForm({
         </p>
       </div>
 
-      <Button isLoading={loading} onClick={generate} size="sm" type="button">
+      <Button className="w-full sm:w-auto" isLoading={loading} onClick={generate} size="sm" type="button">
         Generar letras automaticamente
       </Button>
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Input
           onChange={(event) =>
             setManual((current) => ({ ...current, installment_number: event.target.value }))
@@ -116,7 +116,7 @@ export function DebtInstallmentGeneratorForm({
       </div>
 
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
-      <Button isLoading={loading} onClick={addManual} size="sm" type="button" variant="secondary">
+      <Button className="w-full sm:w-auto" isLoading={loading} onClick={addManual} size="sm" type="button" variant="secondary">
         Agregar letra manual
       </Button>
     </div>

@@ -75,7 +75,7 @@ export function DebtInstallmentSettlementForm({
   return (
     <form className="space-y-3 rounded-xl border border-ink-100 bg-white p-4" onSubmit={onSubmit}>
       <h3 className="text-sm font-semibold text-ink-800">Confirmar letra</h3>
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <Select
           onChange={(event) => {
             const nextId = event.target.value;
@@ -127,7 +127,7 @@ export function DebtInstallmentSettlementForm({
         type="file"
       />
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
-      <Button isLoading={form.formState.isSubmitting} size="sm" type="submit">
+      <Button className="w-full sm:w-auto" isLoading={form.formState.isSubmitting} size="sm" type="submit">
         Confirmar letra
       </Button>
     </form>

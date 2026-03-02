@@ -1,23 +1,23 @@
 # MiBalance EC
 
-Aplicación web de finanzas personales para Ecuador.
+Aplicacion web de finanzas personales para Ecuador.
 
 - Moneda: `USD`
 - Zona horaria: `America/Guayaquil`
-- Idioma: Español
+- Idioma: `Espanol`
 - Stack: `Next.js App Router + TypeScript + Tailwind + Supabase`
 
 ## Funcionalidades
 
 - Auth con Supabase.
-- Dashboard con resumen, filtros y gráficas.
+- Dashboard con resumen, filtros y graficas.
 - Transacciones con adjuntos y OCR de comprobantes.
 - Tarjetas:
   - CRUD
-  - activación y desactivación
-  - eliminación lógica
-  - pago mínimo actual
-  - fecha máxima de pago
+  - activacion y desactivacion
+  - eliminacion logica
+  - pago minimo actual
+  - fecha maxima de pago
 - Deudas:
   - prestamos
   - avances en efectivo
@@ -25,30 +25,37 @@ Aplicación web de finanzas personales para Ecuador.
   - pagos
   - documentos asociados
   - letras persistidas
-  - onboarding guiado para prestamos desde documento
-  - activación, desactivación y eliminación lógica
+  - onboarding scan-first desde documento
+  - activacion, desactivacion y eliminacion logica
   - filtro por estado en listado
+  - detalle responsive movil con secciones plegables
+  - cronograma, documentos y pagos paginados de 10 en 10
 - Toasts globales para mensajes de exito y error.
 
-## Flujo nuevo de prestamos
+## Flujo nuevo de deudas
 
 Ruta: `/debts/new`
 
-Si el usuario selecciona `Préstamo`:
-
-1. Sube primero el documento.
+1. El usuario sube primero el documento.
 2. El sistema intenta analizarlo.
-3. Si el archivo no parece ser de préstamo, muestra toast de error.
-4. Si el archivo es válido, autorrellena campos base cuando detecta datos.
+3. Si el archivo no parece corresponder a la deuda, muestra error.
+4. Si el archivo es valido, autocompleta campos base cuando detecta datos.
 5. Muestra las letras detectadas o generadas.
 6. El usuario puede marcar cuales ya fueron pagadas.
 7. Las letras vencidas se determinan por fecha.
-8. `Fecha pagada` solo se llena si la letra se marca como pagada.
+8. `Fecha pagada` solo se llena si la cuota se marca como pagada.
 
 Notas:
 
-- El parser actual es heurístico. Funciona mejor con tablas de amortización legibles.
-- Para PDFs escaneados complejos todavía puede requerir ajuste manual.
+- El parser actual es heuristico. Funciona mejor con tablas de amortizacion legibles.
+- Para PDFs escaneados complejos todavia puede requerir ajuste manual.
+
+## UX de deudas
+
+- `/debts/new` prioriza el escaneo antes del llenado manual.
+- `/debts/[id]` usa un header compacto con resumen y estado.
+- En movil, `Editar deuda`, `Acciones`, `Cronograma`, `Documentos` y `Pagos` se muestran como secciones plegables.
+- Las tablas usan una version compacta para movil y mantienen la paginacion dentro del mismo componente visual.
 
 ## Estructura principal
 
@@ -101,10 +108,19 @@ Aplicar migraciones locales:
 docker-compose run --rm supabase-cli sh -lc "npx supabase@latest db push --local"
 ```
 
-Build de validación:
+Build de validacion:
 
 ```bash
 docker-compose exec app npm run build
+```
+
+Validaciones utiles:
+
+```bash
+npm run lint
+npm run typecheck
+npm run build
+npm run e2e
 ```
 
 Si `next dev` se corrompe y deja de abrir rutas como `/debts/new`, reinicia solo la app:
@@ -113,9 +129,15 @@ Si `next dev` se corrompe y deja de abrir rutas como `/debts/new`, reinicia solo
 powershell -ExecutionPolicy Bypass -File .\scripts\restart-app.ps1
 ```
 
+Scripts de apoyo:
+
+- iniciar Supabase local: `powershell -ExecutionPolicy Bypass -File .\scripts\supabase-start.ps1`
+- detener Supabase local: `powershell -ExecutionPolicy Bypass -File .\scripts\supabase-stop.ps1`
+- reset DB local: `powershell -ExecutionPolicy Bypass -File .\scripts\db-reset.ps1`
+
 Notas del entorno Docker:
 
-- `.next` ahora usa un volumen dedicado del contenedor para reducir corrupción del cache en Windows.
+- `.next` usa un volumen dedicado del contenedor para reducir corrupcion del cache en Windows.
 - `app` evita reinstalar dependencias en cada arranque si `node_modules` ya existe.
 
 ## Base de datos
@@ -148,17 +170,19 @@ Validado recientemente:
 
 - migraciones locales aplicadas
 - `docker-compose exec app npm run build` OK
-- flujo de tarjetas con activación/desactivación y nuevos campos
-- onboarding de préstamos con documento, letras y estados
+- `npm run build` OK
+- flujo de tarjetas con activacion/desactivacion y nuevos campos
+- onboarding de deudas reordenado a flujo `scan-first`
 - deudas con activar/desactivar separado de eliminar
 - filtro de deudas por estado
-- corrección de `Fecha pagada` en onboarding de letras
+- correccion de `Fecha pagada` en onboarding de letras
 - preview y descarga de documentos y comprobantes
+- vista de detalle de deudas compactada para movil con acordeones y tablas densas
 - OCR de comprobantes para autocompletar transacciones
 - tooling E2E con Playwright
 
 ## Pendientes
 
-- OCR más robusto para tablas de amortización escaneadas.
+- OCR mas robusto para tablas de amortizacion escaneadas.
 - Extender el onboarding a avances y diferidos.
-- Agenda unificada de pagos, mínimos y vencimientos.
+- Agenda unificada de pagos, minimos y vencimientos.

@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export function DeleteDebtButton({ debtId }: { debtId: string }) {
@@ -19,6 +20,7 @@ export function DeleteDebtButton({ debtId }: { debtId: string }) {
 
   return (
     <Button isLoading={loading} onClick={onDelete} size="sm" type="button" variant="danger">
+      <Trash2 className="mr-1.5 h-4 w-4" />
       Eliminar
     </Button>
   );

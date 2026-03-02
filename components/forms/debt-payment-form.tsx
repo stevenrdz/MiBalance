@@ -80,7 +80,7 @@ export function DebtPaymentForm({ debtId, installments }: DebtPaymentFormProps) 
   return (
     <form className="space-y-3 rounded-xl border border-ink-100 bg-white p-4" onSubmit={onSubmit}>
       <h3 className="text-sm font-semibold text-ink-800">Confirmar pago mensual</h3>
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Input type="date" {...form.register("payment_date")} />
         <Select {...form.register("installment_number")}>
           {installments.map((item) => (
@@ -122,7 +122,7 @@ export function DebtPaymentForm({ debtId, installments }: DebtPaymentFormProps) 
         </p>
       </div>
       {serverError && <p className="text-sm text-red-600">{serverError}</p>}
-      <Button isLoading={form.formState.isSubmitting} size="sm" type="submit">
+      <Button className="w-full sm:w-auto" isLoading={form.formState.isSubmitting} size="sm" type="submit">
         Guardar pago
       </Button>
     </form>

@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Power } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 
@@ -45,6 +46,7 @@ export function DeactivateDebtButton({
 
   return (
     <Button isLoading={loading} onClick={onToggle} size="sm" type="button" variant="secondary">
+      <Power className="mr-1.5 h-4 w-4" />
       {isActive ? "Desactivar" : "Reactivar"}
     </Button>
   );

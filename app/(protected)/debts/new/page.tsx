@@ -6,7 +6,7 @@ export default function NewDebtPage() {
       <div>
         <h1 className="text-2xl font-bold text-ink-900">Nueva deuda</h1>
         <p className="text-sm text-ink-600">
-          Elige el tipo, analiza el documento si lo tienes y confirma las letras o cuotas antes de guardar.
+          Empieza subiendo el PDF o comprobante para escanearlo, autocompletar los datos y luego confirmar las cuotas antes de guardar.
         </p>
       </div>
       <DebtOnboardingForm />

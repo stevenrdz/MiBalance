@@ -134,11 +134,11 @@ export function DebtForm({ mode, debtId, initialData }: DebtFormProps) {
 
       {serverError && <p className="text-sm text-red-600">{serverError}</p>}
 
-      <div className="flex gap-2">
-        <Button isLoading={form.formState.isSubmitting} type="submit">
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <Button className="w-full sm:w-auto" isLoading={form.formState.isSubmitting} type="submit">
           {mode === "create" ? "Crear deuda" : "Actualizar deuda"}
         </Button>
-        <Button onClick={() => router.push("/debts")} type="button" variant="secondary">
+        <Button className="w-full sm:w-auto" onClick={() => router.push("/debts")} type="button" variant="secondary">
           Cancelar
         </Button>
       </div>
